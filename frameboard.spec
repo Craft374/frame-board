@@ -32,6 +32,7 @@ exe = EXE(
     exclude_binaries=True,
     name="FrameBoard",
     console=False,
+    icon=os.path.join(SPECPATH, "assets", "icon.ico" if sys.platform == "win32" else "icon.icns"),
     disable_windowed_traceback=True,
     upx=False,
 )
@@ -42,6 +43,7 @@ if sys.platform == "darwin":
         coll,
         name="FrameBoard.app",
         bundle_identifier="io.github.frameboard",
+        icon=os.path.join(SPECPATH, "assets", "icon.icns"),
         info_plist={
             # Cocoa 이벤트 루프가 없는 프로그램이라, Dock에 아이콘이 있으면 "응답 없음"으로 보입니다.
             "LSUIElement": True,

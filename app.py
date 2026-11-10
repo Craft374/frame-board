@@ -45,7 +45,8 @@ VIDEO_DIR = DATA / "videos"
 JOB_DIR = DATA / "jobs"
 HOST, PORT = "127.0.0.1", 8765
 URL = f"http://{HOST}:{PORT}"
-FORMAT = "bv*[vcodec^=avc1][height<=1080][ext=mp4][protocol=https]/bv*[ext=mp4][protocol=https]/b[ext=mp4]/bv*"
+FORMAT = ("bv*[vcodec^=avc1][height<=1080][ext=mp4][protocol=https]/bv*[ext=mp4][protocol=https]"
+          "/b[ext=mp4][protocol=https]/bv*[protocol=https]")  # https 단일 파일만 중계할 수 있음
 # yt-dlp가 유튜브 고화질 포맷을 받으려면 JS 런타임(deno)이 필요합니다. 빌드에는 deno가 함께 들어 있습니다.
 DENO = (RES_DIR if FROZEN else Path(sysconfig.get_path("scripts"))) / ("deno.exe" if os.name == "nt" else "deno")
 YDL_OPTS = {"quiet": True, "no_warnings": True, "noplaylist": True, "format": FORMAT,
@@ -59,6 +60,7 @@ STREAM_TTL = 3 * 3600  # 유튜브 스트림 주소는 몇 시간 뒤 만료됩�
 LOCK = threading.Lock()
 videos = {}  # id -> VideoMeta (+ "source": 유튜브 페이지 주소)
 streams = {}  # id -> {"url", "headers", "size", "at"}: 영상을 통째로 받지 않고 필요한 부분만 중계합니다.
+PROBE_LOCK = threading.Lock()  # ponytail: 주소 갱신은 전체에서 한 번에 하나, 영상 여러 개를 동시에 쓰게 되면 영상별 잠금으로
 jobs = {}  # job_id -> job dict
 alive = {"n": 0, "seen": False}  # 열려 있는 /api/alive 연결 수, 한 번이라도 연결됐는지
 
@@ -143,21 +145,26 @@ def new_stream(info):
          "at": time.time()}
     if not s["size"]:
         with open_upstream(s, 0, 0) as r:
-            s["size"] = int(r.headers["Content-Range"].rsplit("/", 1)[1])
+            total = (r.headers.get("Content-Range") or "").rsplit("/", 1)[-1]
+        if not total.isdigit():
+            raise ValueError("이 영상은 재생할 수 있는 형식을 찾지 못했습니다.")
+        s["size"] = int(total)
     return s
 
 
 def stream(vid, refresh=False):
-    with LOCK:
-        s, meta = streams.get(vid), videos.get(vid)
-    if s and not refresh and time.time() - s["at"] < STREAM_TTL:
+    started = time.time()
+    with PROBE_LOCK:  # 여러 요청이 동시에 만료를 만나도 yt-dlp는 한 번만 돌립니다.
+        with LOCK:
+            s, meta = streams.get(vid), videos.get(vid)
+        if s and (s["at"] >= started or not refresh) and time.time() - s["at"] < STREAM_TTL:
+            return s
+        if not meta:
+            raise LookupError("영상을 찾을 수 없습니다.")
+        s = new_stream(probe(meta["source"])[1])
+        with LOCK:
+            streams[vid] = s
         return s
-    if not meta:
-        raise LookupError("영상을 찾을 수 없습니다.")
-    s = new_stream(probe(meta["source"])[1])
-    with LOCK:
-        streams[vid] = s
-    return s
 
 
 def fetch(vid, a, b):
@@ -176,26 +183,23 @@ def add_video(url):
     ext = info.get("ext") if info.get("ext") in MEDIA_TYPES else "mp4"
     with LOCK:
         old = videos.get(vid)
+        streams[vid] = s  # 아래 cv2 확인이 중계 주소를 쓰므로 먼저 등록 (기존 기록은 확인이 끝난 뒤 교체)
         meta = {"id": vid, "title": info.get("title") or vid, "status": "ready", "progress": 1.0, "error": None,
                 "width": 0, "height": 0, "fps": 0.0, "frame_count": 0, "duration": 0.0,
                 "url": f"/media/{vid}.{ext}", "source": info.get("webpage_url") or url,
                 "created": old["created"] if old else time.time()}
-        videos[vid], streams[vid] = meta, s
     # fps는 반드시 실제 영상에서 읽습니다(29.97을 30으로 쓰면 뒤로 갈수록 프레임 번호가 어긋남).
     # 자기 서버의 중계 주소로 열어 HTTPS 지원 여부와 끊김 재시도를 신경 쓰지 않아도 됩니다.
     cap = cv2.VideoCapture(f"{URL}{meta['url']}")
     w, h = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps, count = cap.get(cv2.CAP_PROP_FPS), int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     cap.release()
-    if not (w and h and fps and count):
-        fps, w, h = info.get("fps") or 30.0, info.get("width") or 0, info.get("height") or 0
-        count = int((info.get("duration") or 0) * fps)
-    if not (w and h and count):
-        with LOCK:
-            videos.pop(vid, None)
+    if not (w and h and fps):
         raise ValueError("영상을 열 수 없습니다. 잠시 뒤 다시 시도해 주세요.")
+    count = count or int((info.get("duration") or 0) * fps)
+    meta.update(width=w, height=h, fps=fps, frame_count=count, duration=count / fps)
     with LOCK:
-        meta.update(width=w, height=h, fps=fps, frame_count=count, duration=count / fps)
+        videos[vid] = meta
     save_meta(meta)
     return vid
 
@@ -266,6 +270,8 @@ def run_job(job, video_path, args):
     try:
         run_track(video_path, JOB_DIR / job["id"], job=job, **args)
         status, error = ("cancelled" if job["cancel"] else "done"), None
+        if status == "done" and job["processed"] < job["total"]:  # 영상 끝이나 네트워크 끊김으로 일찍 멈춤
+            error = f"영상 읽기가 중간에 멈춰 {job['processed']}/{job['total']} 프레임까지만 확인했습니다."
     except Exception as e:
         status, error = "error", f"프레임 추출 중 오류가 발생했습니다. ({e})"[:300]
     with LOCK:
@@ -347,33 +353,13 @@ class Handler(BaseHTTPRequestHandler):
     def send_file(self, path, ctype, cache="no-cache"):
         if not path.is_file():
             return self.error(404, "파일을 찾을 수 없습니다.")
-        size = path.stat().st_size
-        try:
-            rng = parse_range(self.headers.get("Range"), size)
-        except ValueError:
-            self.send_response(416)
-            self.send_header("Content-Range", f"bytes */{size}")
-            self.send_header("Content-Length", "0")
-            self.end_headers()
-            return
-        start, end = rng or (0, size - 1)
-        self.send_response(206 if rng else 200)
+        data = path.read_bytes()  # index.html과 작은 PNG뿐입니다.
+        self.send_response(200)
         self.send_header("Content-Type", ctype)
-        self.send_header("Accept-Ranges", "bytes")
-        self.send_header("Content-Length", str(end - start + 1))
+        self.send_header("Content-Length", str(len(data)))
         self.send_header("Cache-Control", cache)
-        if rng:
-            self.send_header("Content-Range", f"bytes {start}-{end}/{size}")
         self.end_headers()
-        with open(path, "rb") as f:
-            f.seek(start)
-            left = end - start + 1
-            while left > 0:
-                chunk = f.read(min(left, 256 * 1024))
-                if not chunk:
-                    break
-                self.wfile.write(chunk)
-                left -= len(chunk)
+        self.wfile.write(data)
 
     def send_stream(self, vid, ctype):
         """유튜브 영상을 Range 요청 그대로 중계합니다. 연결이 끊기면 받은 위치부터 이어서 받습니다."""
@@ -398,9 +384,12 @@ class Handler(BaseHTTPRequestHandler):
         pos, fails = start, 0
         while pos <= end and fails < 5:
             got = 0
-            try:
+            try:  # 헤더를 이미 보냈으므로 어떤 실패든 재시도로 처리합니다(오류 응답을 섞어 쓰면 안 됨).
                 r = fetch(vid, pos, min(pos + CHUNK - 1, end))
-            except (OSError, http.client.HTTPException):  # URLError, 타임아웃 포함
+                if r.status != 206 or not (r.headers.get("Content-Range") or "").startswith(f"bytes {pos}-"):
+                    r.close()
+                    r = None
+            except Exception:
                 r = None
             if r:
                 with r:
@@ -635,15 +624,15 @@ def open_window():
 
 def exit_when_closed(browser):
     """창(/api/alive 연결)이 한 번 열린 뒤 모두 닫힌 채 3초가 지나면 종료합니다. 새로고침은 1초 안에 다시 붙습니다."""
-    idle = 0
+    idle, t0 = 0, time.time()
     while idle < 6:
         time.sleep(0.5)
-        with LOCK:
-            idle = idle + 1 if alive["seen"] and alive["n"] == 0 else 0
+        with LOCK:  # 창이 60초 안에 한 번도 연결되지 않아도 (창을 바로 닫은 경우) 숨은 채 남지 않고 종료
+            idle = idle + 1 if (alive["seen"] or time.time() - t0 > 60) and alive["n"] == 0 else 0
     with LOCK:
         for job in jobs.values():
             job["cancel"] = True
-    if browser:
+    if browser and sys.platform == "darwin":  # Windows의 terminate는 강제 종료라 Edge가 스스로 닫히게 둡니다.
         browser.terminate()  # macOS의 Chrome은 마지막 창을 닫아도 계속 실행되어 있으므로 직접 닫습니다.
     os._exit(0)
 
