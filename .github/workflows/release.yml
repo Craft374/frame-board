@@ -16,7 +16,7 @@ jobs:
         include:
           - os: windows-latest
             zip: FrameBoard-windows-x64.zip
-          - os: macos-14
+          - os: macos-15
             zip: FrameBoard-mac-arm64.zip
     runs-on: ${{ matrix.os }}
     steps:
