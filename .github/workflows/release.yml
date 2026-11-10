@@ -1,0 +1,98 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            zip: FrameBoard-windows-x64.zip
+          - os: macos-14
+            zip: FrameBoard-mac-arm64.zip
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          enable-cache: true
+
+      - name: Build
+        run: uv run --locked --group build pyinstaller frameboard.spec --noconfirm
+
+      # 창 없는 exe라 콘솔 출력이 없습니다: 종료 코드로 판단하고, 출력은 data/log.txt에 있습니다.
+      - name: Selftest (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath dist\FrameBoard\FrameBoard.exe -ArgumentList '--selftest' -Wait -PassThru
+          Get-Content dist\FrameBoard\data\log.txt -ErrorAction SilentlyContinue
+          if ($p.ExitCode -ne 0) { throw "selftest failed: exit $($p.ExitCode)" }
+      - name: Selftest (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          code=0; dist/FrameBoard.app/Contents/MacOS/FrameBoard --selftest || code=$?
+          cat ~/Library/Application\ Support/FrameBoard/log.txt || true
+          exit $code
+
+      # GitHub 러너 IP는 유튜브 봇 확인에 자주 걸리므로 실패해도 빌드를 막지 않습니다.
+      - name: Online selftest (Windows)
+        if: runner.os == 'Windows'
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath dist\FrameBoard\FrameBoard.exe -ArgumentList '--selftest-online' -Wait -PassThru
+          Get-Content dist\FrameBoard\data\log.txt -Tail 20 -ErrorAction SilentlyContinue
+          if ($p.ExitCode -ne 0) { throw "online selftest failed: exit $($p.ExitCode)" }
+      - name: Online selftest (macOS)
+        if: runner.os == 'macOS'
+        continue-on-error: true
+        run: |
+          code=0; dist/FrameBoard.app/Contents/MacOS/FrameBoard --selftest-online || code=$?
+          tail -n 20 ~/Library/Application\ Support/FrameBoard/log.txt || true
+          exit $code
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Remove-Item -Recurse -Force dist\FrameBoard\data -ErrorAction SilentlyContinue
+          Copy-Item README.md, LICENSE, THIRD_PARTY_NOTICES.md dist\FrameBoard\
+          Compress-Archive -Path dist\FrameBoard -DestinationPath ${{ matrix.zip }}
+      - name: Package (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          mkdir -p pkg/FrameBoard
+          ditto dist/FrameBoard.app pkg/FrameBoard/FrameBoard.app
+          cp README.md LICENSE THIRD_PARTY_NOTICES.md pkg/FrameBoard/
+          ditto -c -k --keepParent pkg/FrameBoard ${{ matrix.zip }}
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.zip }}
+          path: ${{ matrix.zip }}
+          if-no-files-found: error
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: out
+          merge-multiple: true
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create ${{ github.ref_name }} out/*.zip --repo ${{ github.repository }} --title "Frame Board ${{ github.ref_name }}" --generate-notes

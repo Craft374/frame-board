@@ -1,0 +1,1183 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#e8e8eb">
+<title>Frame Board</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='15' fill='%230a84ff'/%3E%3Cg fill='%23fff'%3E%3Crect x='14' y='14' width='16' height='16' rx='3.5'/%3E%3Crect x='34' y='14' width='16' height='16' rx='3.5' opacity='.72'/%3E%3Crect x='14' y='34' width='16' height='16' rx='3.5' opacity='.72'/%3E%3Crect x='34' y='34' width='16' height='16' rx='3.5' opacity='.45'/%3E%3C/g%3E%3C/svg%3E">
+<script>
+// resolve the theme before first paint so it never flashes; the toolbar toggle reuses these
+const themeOf = pref => pref === 'dark' || (pref !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+function applyTheme(t) {
+  document.documentElement.dataset.theme = t;
+  document.querySelector('meta[name=theme-color]').content = t === 'dark' ? '#141416' : '#e8e8eb'; // = --bg, tints the app window title bar
+}
+try { applyTheme(themeOf(localStorage.getItem('frameboard.theme'))); } catch { applyTheme(themeOf()); }
+</script>
+<style>
+:root{
+  color-scheme:light;
+  --bg:#e8e8eb; --dot:rgba(0,0,0,.13);
+  --fg:#1d1d1f; --fg2:rgba(60,60,67,.76); --fg3:rgba(60,60,67,.54);
+  --accent:#007aff; --accent-hover:#1a86ff; --accent-press:#0062cc;
+  --fill:rgba(120,120,128,.12); --fill-hover:rgba(120,120,128,.19); --fill-press:rgba(120,120,128,.28);
+  --hair:rgba(0,0,0,.09);
+  --glass:rgba(250,250,252,.74); --solid:#f6f6f8; --sheet:#fbfbfd; --field:#fff; --seg-on:#fff;
+  --img:rgba(0,0,0,.035); --sel:rgba(0,122,255,.12); --scrim:rgba(0,0,0,.24);
+  --shadow:0 8px 28px rgba(0,0,0,.12),0 1px 2px rgba(0,0,0,.06); --shadow-lg:0 30px 80px rgba(0,0,0,.22);
+  --edge:inset 0 1px 0 rgba(255,255,255,.8);
+  --toast:rgba(36,36,40,.88);
+  --danger:#e0281e; --warn:#b25e00; --on:#34c759; --link:#0066cc;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+:root[data-theme=dark]{
+  color-scheme:dark;
+  --bg:#141416; --dot:rgba(255,255,255,.11);
+  --fg:#f5f5f7; --fg2:rgba(235,235,245,.64); --fg3:rgba(235,235,245,.4);
+  --accent:#0a84ff; --accent-hover:#2690ff; --accent-press:#0071e3;
+  --fill:rgba(120,120,128,.24); --fill-hover:rgba(120,120,128,.32); --fill-press:rgba(120,120,128,.44);
+  --hair:rgba(255,255,255,.09);
+  --glass:rgba(40,40,44,.72); --solid:#26262a; --sheet:#1e1e22; --field:rgba(0,0,0,.3); --seg-on:rgba(255,255,255,.18);
+  --img:rgba(255,255,255,.03); --sel:rgba(10,132,255,.14); --scrim:rgba(0,0,0,.5);
+  --shadow:0 10px 30px rgba(0,0,0,.35); --shadow-lg:0 30px 80px rgba(0,0,0,.55);
+  --edge:inset 0 1px 0 rgba(255,255,255,.06);
+  --toast:rgba(58,58,62,.9);
+  --danger:#ff6961; --warn:#ffb340; --on:#30d158; --link:#64b5ff;
+}
+/* theme switch: one cheap snapshot cross-fade (opacity only, so it stays under reduced motion too) */
+::view-transition-old(root),::view-transition-new(root){animation-duration:.3s;animation-timing-function:ease}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;overscroll-behavior:none;background:var(--bg);color:var(--fg)}
+body{font:14px/1.45 -apple-system,BlinkMacSystemFont,system-ui,"Apple SD Gothic Neo","Malgun Gothic","Segoe UI",sans-serif;-webkit-font-smoothing:antialiased;word-break:keep-all;cursor:default;user-select:none;-webkit-user-select:none}
+button{font:inherit;color:inherit;cursor:default}
+input{user-select:text;-webkit-user-select:text}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+[hidden]{display:none!important}
+[popover]{margin:0;padding:0;border:0;color:inherit;inset:auto;overflow:visible;background:none}
+
+/* board */
+#viewport{position:fixed;inset:0;overflow:hidden;touch-action:none;background-color:var(--bg);background-image:radial-gradient(circle at center,var(--dot) 1px,transparent 1.5px)}
+#viewport.grab{cursor:grab}
+#viewport.panning{cursor:grabbing}
+#world{position:absolute;left:0;top:0;transform-origin:0 0}
+#world.moving{will-change:transform}
+.item{position:absolute;left:0;top:0}
+.item img{display:block;image-rendering:pixelated;background:var(--img)}
+.item.sel img{outline:calc(2px / var(--zs,1)) solid var(--accent)}
+.item.enter img{animation:pop .32s cubic-bezier(.2,.9,.25,1) both}
+@keyframes pop{from{opacity:0;transform:scale(.9)}}
+.lbl{position:absolute;left:0;top:100%;max-width:100%;display:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:calc(10px / var(--zs,1));line-height:1.3;color:var(--fg3);font-variant-numeric:tabular-nums}
+#world.labels .lbl{display:block}
+.ghead{position:absolute;left:0;top:0}
+.ghead span{position:absolute;left:0;bottom:calc(6px / max(var(--zs,1),.25));white-space:nowrap;font-size:calc(12px / max(var(--zs,1),.25));font-weight:600;letter-spacing:.01em;color:var(--fg2);padding:.2em .55em;border-radius:.5em;background:var(--fill)}
+@media (hover:hover){.ghead span:hover{background:var(--fill-hover);color:var(--fg)}}
+#marquee{position:absolute;left:0;top:0;border:1px solid var(--accent);background:var(--sel);pointer-events:none}
+
+/* materials & controls — blur only on small, static chrome; sheets are solid */
+.glass{background:var(--glass);-webkit-backdrop-filter:blur(24px) saturate(170%);backdrop-filter:blur(24px) saturate(170%);border:1px solid var(--hair);box-shadow:var(--shadow),var(--edge)}
+.btn{height:32px;padding:0 12px;border:0;border-radius:9px;background:var(--fill);font-weight:550;white-space:nowrap;display:inline-flex;align-items:center;gap:6px;transition:transform .12s ease-out,background-color .15s,opacity .15s}
+.btn:active{transform:scale(.96);background:var(--fill-press);transition-duration:.06s}
+.btn.primary{background:var(--accent);color:#fff}
+.btn.primary:active{background:var(--accent-press)}
+.btn.lg{height:40px;padding:0 18px;font-size:15px;border-radius:11px}
+.btn.ghost{background:transparent}
+.btn:disabled{opacity:.38;transform:none;pointer-events:none}
+.btn.busy:disabled{opacity:.72}
+.btn.busy::before,.stage.loading::after{content:"";flex:none;width:14px;height:14px;border-radius:50%;border:2px solid currentColor;border-right-color:transparent;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(1turn)}}
+.ib{width:32px;height:32px;border:0;border-radius:9px;background:transparent;display:inline-grid;place-items:center;font-size:16px;transition:transform .12s ease-out,background-color .15s}
+.ib:active{transform:scale(.92);background:var(--fill-press);transition-duration:.06s}
+@media (hover:hover){
+  .btn:hover{background:var(--fill-hover)}
+  .btn.primary:hover{background:var(--accent-hover)}
+  .ib:hover{background:var(--fill)}
+}
+kbd{font:500 11px/1 var(--mono);color:var(--fg3);padding:3px 5px;border-radius:5px;background:var(--fill)}
+.muted{margin:0;color:var(--fg3);font-size:12px}
+.err{margin:0;color:var(--danger);font-size:13px}
+.err:empty{display:none}
+.bar{display:block;width:120px;height:4px;border-radius:2px;background:var(--fill-press);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent);transform-origin:left;transform:scaleX(0);transition:transform .3s}
+.bar.indet i{width:40%;animation:indet 1.1s cubic-bezier(.45,0,.55,1) infinite}
+@keyframes indet{from{transform:translateX(-100%)}to{transform:translateX(250%)}}
+
+/* floating chrome */
+.toolbar{position:fixed;left:12px;top:12px;display:flex;align-items:center;gap:6px;padding:6px;border-radius:14px}
+.brand{display:flex;align-items:center;gap:8px;font-weight:650;font-size:13px;letter-spacing:-.005em;padding:0 8px 0 4px}
+.brand svg{flex:none;color:var(--accent)}
+.zoom{position:fixed;right:12px;bottom:12px;display:flex;align-items:center;gap:2px;padding:4px;border-radius:12px}
+.zoom .pct{width:auto;min-width:54px;padding:0 8px;font-size:12px;font-variant-numeric:tabular-nums}
+#jobs{position:fixed;top:12px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:6px}
+.pill{display:flex;align-items:center;gap:10px;height:36px;padding:0 5px 0 14px;border-radius:18px;font-size:13px;font-variant-numeric:tabular-nums;animation:pop-in .2s cubic-bezier(.2,.9,.25,1)}
+.pill .ib{width:26px;height:26px;font-size:12px;border-radius:13px}
+.pill .ib:disabled{opacity:.38}
+.pop,.menu{position:fixed;border-radius:12px;padding:6px;transform-origin:top left}
+.pop:popover-open,.menu:popover-open{animation:pop-in .16s cubic-bezier(.2,.9,.25,1)}
+@keyframes pop-in{from{opacity:0;transform:scale(.96)}}
+.pop{width:320px;max-height:60vh;overflow:auto}
+.pop .muted{padding:10px}
+.menu{min-width:200px}
+.menu button,.vid{display:flex;width:100%;align-items:center;justify-content:space-between;gap:16px;border:0;background:transparent;padding:7px 10px;border-radius:7px;text-align:left}
+.menu hr{border:0;border-top:1px solid var(--hair);margin:4px 6px}
+.menu .danger{color:var(--danger)}
+.vid{flex-direction:column;align-items:flex-start;gap:1px}
+.vid b{max-width:100%;font-weight:550;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vid small{color:var(--fg3);font-size:12px}
+.vid:disabled{opacity:.55}
+@media (hover:hover){
+  .menu button:hover,.vid:not(:disabled):hover{background:var(--accent);color:#fff}
+  .menu button:hover kbd,.vid:hover small{color:rgba(255,255,255,.8)}
+}
+#toasts{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none}
+.toast{max-width:min(560px,90vw);padding:10px 16px;border-radius:12px;font-size:13px;font-weight:500;text-align:center;color:#fff;background:var(--toast);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);box-shadow:var(--shadow);animation:toast-in .3s cubic-bezier(.2,.9,.25,1);transition:opacity .3s,transform .3s}
+.toast.err{color:#ffb4ae}
+.toast.out{opacity:0;transform:translateY(6px)}
+@keyframes toast-in{from{opacity:0;transform:translateY(10px) scale(.98)}}
+
+/* empty state */
+.empty{position:fixed;inset:0;display:grid;place-content:center;justify-items:center;gap:10px;padding:24px;text-align:center;pointer-events:none}
+.empty h1{margin:0;font-size:34px;line-height:1.1;font-weight:700;letter-spacing:-.025em}
+.empty p{margin:0;max-width:30em;color:var(--fg2);font-size:15px}
+.empty .btn{margin-top:14px;pointer-events:auto}
+.empty .muted{margin-top:22px;font-size:12px;letter-spacing:.01em}
+
+/* sheets */
+dialog.wrap{position:fixed;inset:0;width:100%;height:100%;max-width:none;max-height:none;margin:0;padding:0;border:0;overflow:hidden;color:inherit;background:var(--scrim);opacity:0;transition:opacity .2s ease}
+dialog.wrap[open]{display:grid;place-items:center}
+dialog.wrap.in{opacity:1;transition-duration:.25s}
+dialog::backdrop{background:transparent}
+.sheet{margin:0;background:var(--sheet);border:1px solid var(--hair);box-shadow:var(--shadow-lg),var(--edge);transform:scale(.9);transition:transform .22s cubic-bezier(.75,0,.8,.1)}
+.in .sheet{transform:none;transition:transform .38s cubic-bezier(.2,.9,.25,1)}
+.imp{width:min(560px,92vw);padding:22px;border-radius:18px;display:grid;gap:14px}
+.imp h2{margin:0;font-size:19px;font-weight:650;letter-spacing:-.015em}
+.row{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+#url{flex:1;min-width:0;height:44px;padding:0 14px;border-radius:11px;border:1px solid var(--hair);background:var(--field);color:var(--fg);font:inherit;font-size:15px}
+#url:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 30%,transparent)}
+.status{display:grid;gap:6px}
+.status .bar{width:100%}
+.status strong{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.status strong:empty,.status span:empty{display:none}
+#impText{color:var(--fg2);font-size:13px;font-variant-numeric:tabular-nums}
+
+/* editor */
+.ed{width:92vw;height:90vh;border-radius:18px;display:grid;grid-template-rows:auto minmax(0,1fr) auto auto auto;overflow:hidden;outline:none}
+.edhead{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 8px 8px 18px}
+.edhead h2{margin:0;font-size:15px;font-weight:600;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.stage{position:relative;overflow:hidden;background:#000}
+.stage.loading::after{position:absolute;left:50%;top:50%;width:28px;height:28px;margin:-14px;border-width:3px;color:rgba(255,255,255,.85);pointer-events:none;animation:spin .7s linear infinite,fade .2s .3s both} /* shows only if the wait lasts > .3s */
+#video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+.overlay{position:absolute;inset:0;cursor:crosshair;touch-action:none}
+#box{position:absolute;left:0;top:0;border:1.5px solid var(--accent);box-shadow:0 0 0 9999px rgba(0,0,0,.4),0 0 0 1px rgba(0,0,0,.5);cursor:move}
+#box::after{content:attr(data-size);position:absolute;left:-1.5px;bottom:100%;margin-bottom:4px;padding:3px 5px;border-radius:4px;background:var(--accent);color:#fff;font:600 11px/1 var(--mono);white-space:nowrap}
+#box.stale{border-style:dashed;border-color:rgba(255,255,255,.75);box-shadow:none}
+#box.stale::after{background:rgba(60,60,64,.92)}
+#box span{position:absolute;width:12px;height:12px;border-radius:3px;background:#fff;border:1.5px solid var(--accent)}
+#box span::before{content:"";position:absolute;inset:-8px}
+#box [data-c=nw]{left:-7px;top:-7px;cursor:nwse-resize}
+#box [data-c=se]{right:-7px;bottom:-7px;cursor:nwse-resize}
+#box [data-c=ne]{right:-7px;top:-7px;cursor:nesw-resize}
+#box [data-c=sw]{left:-7px;bottom:-7px;cursor:nesw-resize}
+.hint{position:absolute;top:12px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:10px;padding:7px 14px;border-radius:999px;font-size:13px;font-weight:500;white-space:nowrap;pointer-events:none}
+.link{border:0;background:none;padding:0;color:var(--link);font-weight:600;pointer-events:auto}
+.scrub{display:flex;align-items:center;gap:4px;padding:10px 14px 4px}
+.track{position:relative;flex:1;height:28px;margin:0 10px;touch-action:none}
+.rail{position:absolute;left:0;right:0;top:12px;height:4px;border-radius:2px;background:var(--fill-press)}
+#tRange{position:absolute;left:0;right:0;top:10px;height:8px;background:color-mix(in srgb,var(--accent) 60%,transparent);transform-origin:left}
+#tHead{position:absolute;inset:0;pointer-events:none}
+#tHead i{position:absolute;left:-7px;top:7px;width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 0 0 .5px rgba(0,0,0,.12),0 1px 4px rgba(0,0,0,.4);transition:transform .1s}
+.track.active #tHead i{transform:scale(1.3)}
+#timeTxt{min-width:160px;text-align:right;color:var(--fg2);font:500 12.5px/1 var(--mono)}
+.panel{display:flex;flex-wrap:wrap;align-items:flex-start;gap:28px;padding:12px 18px;border-top:1px solid var(--hair)}
+.grp{display:grid;align-content:start;gap:8px}
+.grp h3{margin:0;font-size:11px;font-weight:600;letter-spacing:.06em;color:var(--fg3)}
+.go{margin-left:auto;justify-items:end;text-align:right}
+#estimate{margin:0;font-size:13px;color:var(--fg2)}
+#estimate.warn{color:var(--warn)}
+#rangeTxt{margin:0;font-size:13px;font-variant-numeric:tabular-nums}
+.tip{margin:0;padding:0 18px 14px;font-size:12px;color:var(--fg3)}
+.sw{display:flex;align-items:flex-start;gap:10px}
+.sw span{display:grid}
+.sw small{color:var(--fg3);font-size:12px}
+.sw input{appearance:none;-webkit-appearance:none;position:relative;flex:none;width:36px;height:22px;margin:0;border-radius:11px;background:var(--fill-press);transition:background-color .2s}
+.sw input::before{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .25s cubic-bezier(.2,.9,.25,1)}
+.sw input:checked{background:var(--on)}
+.sw input:checked::before{transform:translateX(14px)}
+.seg{display:inline-flex;padding:2px;border-radius:9px;background:var(--fill)}
+.seg button{height:28px;padding:0 10px;border:0;border-radius:7px;background:transparent;font-size:12.5px;color:var(--fg2);transition:background-color .15s}
+.seg button[aria-pressed=true]{background:var(--seg-on);color:var(--fg);font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+
+@media (prefers-reduced-motion:reduce){
+  .sheet,.in .sheet{transform:none;transition:none}
+  .item.enter img,.pop:popover-open,.menu:popover-open,.toast,.pill{animation-name:fade}
+  .toast.out{transform:none}
+  .btn:active,.ib:active{transform:none}
+  .bar.indet i{width:100%;transform:none;animation:pulse 1.2s ease-in-out infinite alternate}
+}
+@keyframes fade{from{opacity:0}}
+@keyframes pulse{from{opacity:.25}}
+@media (prefers-reduced-transparency:reduce){
+  .glass{background:var(--solid);-webkit-backdrop-filter:none;backdrop-filter:none}
+  .toast{background:#2c2c30;-webkit-backdrop-filter:none;backdrop-filter:none}
+  dialog.wrap{background:rgba(0,0,0,.6)}
+}
+@media (prefers-contrast:more){.glass,.sheet{border-color:var(--fg3)}}
+</style>
+</head>
+<body>
+<main id="viewport" aria-label="프레임 보드"><div id="world"></div><div id="marquee" hidden></div></main>
+
+<section id="empty" class="empty">
+  <h1>프레임 보드</h1>
+  <p>유튜브 영상에서 캐릭터를 골라 프레임을 뽑아 여기에 펼쳐보세요</p>
+  <button class="btn primary lg" data-new>+ 새 영상</button>
+  <p class="muted" id="keysHint"></p>
+</section>
+
+<header class="toolbar glass">
+  <span class="brand"><svg width="18" height="18" viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="15" fill="currentColor"/><g fill="#fff"><rect x="14" y="14" width="16" height="16" rx="3.5"/><rect x="34" y="14" width="16" height="16" rx="3.5" opacity=".72"/><rect x="14" y="34" width="16" height="16" rx="3.5" opacity=".72"/><rect x="34" y="34" width="16" height="16" rx="3.5" opacity=".45"/></g></svg>Frame Board</span>
+  <button class="btn primary" data-new>+ 새 영상</button>
+  <button class="btn" id="recentBtn" popovertarget="recent">최근 영상</button>
+  <button class="ib" id="themeBtn"></button>
+</header>
+<div id="recent" popover class="pop glass"><div id="recentList"></div></div>
+
+<div id="jobs"></div>
+
+<div class="zoom glass" role="toolbar" aria-label="확대와 축소">
+  <button class="ib" id="zOut" aria-label="축소">−</button>
+  <button class="ib pct" id="zPct" aria-label="100%로 보기">100%</button>
+  <button class="ib" id="zIn" aria-label="확대">+</button>
+  <button class="btn ghost" id="zFit">전체 보기</button>
+</div>
+
+<div id="menu" popover="manual" class="menu glass" role="menu">
+  <button role="menuitem" data-act="copy">복사 <kbd data-k="C"></kbd></button>
+  <button role="menuitem" data-act="dup">복제 <kbd data-k="D"></kbd></button>
+  <button role="menuitem" data-act="save">PNG로 저장</button>
+  <hr>
+  <button role="menuitem" data-act="row">가로로 정렬</button>
+  <button role="menuitem" data-act="grid">격자로 정렬</button>
+  <hr>
+  <button role="menuitem" data-act="del" class="danger">삭제 <kbd id="delKey"></kbd></button>
+</div>
+
+<div id="toasts" popover="manual" aria-live="polite"></div>
+
+<dialog id="import" class="wrap" aria-labelledby="impH">
+  <form class="sheet imp" id="impForm">
+    <h2 id="impH">새 영상 불러오기</h2>
+    <div class="row">
+      <input id="url" type="text" inputmode="url" autocomplete="off" spellcheck="false" autofocus placeholder="유튜브 링크를 붙여넣으세요" aria-label="유튜브 링크">
+      <button class="btn primary lg" id="impGo">불러오기</button>
+    </div>
+    <div class="status">
+      <strong id="impTitle"></strong>
+      <span class="bar" id="impBar" hidden><i id="impFill"></i></span>
+      <span id="impText"></span>
+      <p class="err" id="impErr" role="alert"></p>
+    </div>
+    <p class="muted">영상을 통째로 받지 않아서 긴 영상도 몇 초면 열려요.</p>
+  </form>
+</dialog>
+
+<dialog id="editor" class="wrap" aria-labelledby="edTitle">
+  <div class="sheet ed" tabindex="-1" autofocus>
+    <header class="edhead"><h2 id="edTitle"></h2><button class="ib" id="edClose" aria-label="닫기">✕</button></header>
+    <div class="stage" id="stage">
+      <video id="video" muted playsinline preload="auto"></video>
+      <div class="overlay" id="overlay">
+        <div id="box" hidden><span data-c="nw"></span><span data-c="ne"></span><span data-c="sw"></span><span data-c="se"></span></div>
+      </div>
+      <div class="hint glass"><span id="hintTxt"></span><button class="link" id="goStart" hidden>시작 프레임으로</button></div>
+    </div>
+    <div class="scrub">
+      <button class="ib" id="play" aria-label="재생 (Space)"></button>
+      <button class="ib" id="prevF" aria-label="이전 프레임 (←)"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M3 3h2v10H3zM13 3v10L6 8z"/></svg></button>
+      <button class="ib" id="nextF" aria-label="다음 프레임 (→)"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M11 3h2v10h-2zM3 3v10l7-5z"/></svg></button>
+      <div class="track" id="track" role="slider" aria-label="재생 위치" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+        <div class="rail"></div><div id="tRange" hidden></div><div id="tHead"><i></i></div>
+      </div>
+      <span id="timeTxt"></span>
+    </div>
+    <div class="panel">
+      <section class="grp">
+        <h3>구간</h3>
+        <div class="row">
+          <button class="btn" id="setIn">여기서 시작 <kbd>I</kbd></button>
+          <button class="btn" id="setOut">여기서 끝 <kbd>O</kbd></button>
+        </div>
+        <p id="rangeTxt"></p>
+        <p class="muted">추적은 시작 프레임의 박스 위치에서 출발해요</p>
+      </section>
+      <section class="grp">
+        <h3>옵션</h3>
+        <label class="sw"><input type="checkbox" role="switch" id="follow"><span>캐릭터 따라가기<small>끄면 박스 위치 고정</small></span></label>
+        <label class="sw"><input type="checkbox" role="switch" id="dedupe"><span>같은 그림은 건너뛰기<small>게임 애니메이션은 한 동작이 여러 프레임 유지돼요</small></span></label>
+        <div class="row"><span class="muted">간격</span>
+          <div class="seg" id="seg" role="group" aria-label="간격">
+            <button data-step="1">모든 프레임</button><button data-step="2">2프레임마다</button><button data-step="3">3프레임마다</button><button data-step="6">6프레임마다</button>
+          </div>
+        </div>
+      </section>
+      <section class="grp go">
+        <p id="estimate"></p>
+        <button class="btn primary lg" id="goBtn">프레임 뽑기</button>
+        <p class="err" id="edErr" role="alert"></p>
+      </section>
+    </div>
+    <p class="tip">추적이 빗나가면: 빗나간 프레임에서 박스를 다시 그리고 거기서부터 다시 뽑으세요.</p>
+  </div>
+</dialog>
+
+<script>
+(() => {
+'use strict';
+
+// ── state ─────────────────────────────────────────────
+const $ = s => document.querySelector(s);
+const KEY = 'frameboard.v1', GAP = 8, COLS = 10, ZMIN = 0.05, ZMAX = 32, MAXN = 3000;
+const MAC = /Mac|iPhone|iPad/.test(navigator.platform);
+const MOD = MAC ? '⌘' : 'Ctrl+';
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
+const board = { items: [], groups: [], view: { x: 120, y: 140, z: 1 } };
+const view = board.view;
+let sel = new Set(), clip = [], undoStack = [], redoStack = [];
+const els = new Map(), gels = new Map(), fresh = new Set(), jobs = new Map();
+let vw = innerWidth, vh = innerHeight; // cached: reading innerWidth can force layout, so never inside a frame
+const pointer = { x: vw / 2, y: vh / 2 };
+const viewport = $('#viewport'), world = $('#world'), marqueeEl = $('#marquee');
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const uid = () => crypto.randomUUID();
+const pad = (n, l = 2) => String(n).padStart(l, '0');
+function busyBtn(b, on) { b.disabled = on; b.classList.toggle('busy', on); }
+// input handlers only record; the work runs once per frame. flush() runs a pending frame now (e.g. on release)
+function frameTask(fn) {
+  let id = 0;
+  const run = () => { id = 0; fn(); };
+  return { queue() { if (!id) id = requestAnimationFrame(run); }, flush() { if (id) { cancelAnimationFrame(id); run(); } } };
+}
+function fmt(t) { const cs = Math.max(0, Math.round(t * 100)); return `${pad(Math.floor(cs / 6000))}:${pad(Math.floor(cs / 100) % 60)}.${pad(cs % 100)}`; }
+const fmtS = t => fmt(t).slice(0, 5);
+
+try {
+  localStorage.setItem(KEY + '.tab', uid()); // tells older tabs that this one now owns the board
+  const s = JSON.parse(localStorage.getItem(KEY));
+  if (s) {
+    board.items = s.items || []; board.groups = s.groups || []; Object.assign(view, s.view);
+    for (const j of s.running || []) if (board.groups.some(g => g.id === j.id)) jobs.set(j.id, { ...j, fails: 0 }); // resumed in init
+  }
+} catch { /* corrupt storage: start fresh */ }
+pruneGroups();
+
+let saveT = 0, saveWarned = false, dead = false;
+function scheduleSave() { clearTimeout(saveT); saveT = setTimeout(saveNow, 400); }
+function saveNow() {
+  if (dead) return;
+  const running = [...jobs.values()].map(({ pill, fails, stopping, ...j }) => j);
+  try { localStorage.setItem(KEY, JSON.stringify({ ...board, running })); }
+  catch { if (!saveWarned) { saveWarned = true; toast('보드를 저장하지 못했어요 — 브라우저 저장 공간이 부족해요', true); } }
+}
+addEventListener('pagehide', saveNow);
+// newest tab wins: an older tab stops saving so it can't overwrite the newer board
+// ponytail: a save landing between the new tab's read and this event is lost; needs a lock (Web Locks) if that matters
+addEventListener('storage', e => {
+  if (e.key !== KEY + '.tab' || dead) return;
+  dead = true; clearTimeout(saveT);
+  document.body.innerHTML = '<section class="empty"><h1>다른 탭에서 보드를 열었어요</h1><p>이 탭은 닫아도 돼요. 여기서 계속하려면 새로고침하세요.</p><button class="btn primary lg" onclick="location.reload()">새로고침</button></section>';
+});
+
+// ── toasts ────────────────────────────────────────────
+const toastHost = $('#toasts');
+function toast(msg, err) {
+  const t = document.createElement('div');
+  t.className = 'toast' + (err ? ' err' : '');
+  t.textContent = msg;
+  toastHost.append(t);
+  if (toastHost.showPopover) { // re-raise above any open sheet
+    if (toastHost.matches(':popover-open')) toastHost.hidePopover();
+    toastHost.showPopover();
+  }
+  const hide = () => {
+    if (t.classList.contains('out')) return;
+    t.classList.add('out');
+    setTimeout(() => { t.remove(); if (!toastHost.children.length && toastHost.hidePopover) toastHost.hidePopover(); }, 300);
+  };
+  setTimeout(hide, err ? 5000 : 3000);
+  return hide;
+}
+
+// ── api ───────────────────────────────────────────────
+async function api(path, body) {
+  let r;
+  try {
+    r = await fetch(path, body === undefined ? undefined : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  } catch {
+    throw Object.assign(new Error('서버에 연결할 수 없어요. 프로그램을 다시 실행해 주세요.'), { status: 0 });
+  }
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw Object.assign(new Error(data.error || `요청을 처리하지 못했어요 (${r.status})`), { status: r.status });
+  return data;
+}
+
+// ── view ──────────────────────────────────────────────
+const zoomPct = $('#zPct');
+let viewRaf = 0, movingT = 0, lastZs = 0, lastPct = '';
+const toWorld = (sx, sy) => [(sx - view.x) / view.z, (sy - view.y) / view.z];
+function queueView() { if (!viewRaf) viewRaf = requestAnimationFrame(applyView); }
+function applyView() {
+  cancelAnimationFrame(viewRaf); viewRaf = 0;
+  const { x, y, z } = view;
+  world.style.transform = `translate(${x}px,${y}px) scale(${z})`;
+  let g = 24 * z;
+  while (g < 12) g *= 2;
+  while (g >= 48) g /= 2;
+  viewport.style.backgroundSize = `${g}px ${g}px`;
+  viewport.style.backgroundPosition = `${x}px ${y}px`;
+  const zs = clamp(2 ** Math.round(Math.log2(z)), 1 / 32, 32); // quantized so labels restyle rarely
+  if (zs !== lastZs) { lastZs = zs; world.style.setProperty('--zs', zs); }
+  world.classList.toggle('labels', z >= 1.5); // no-op (no restyle) unless the threshold is crossed
+  const pct = Math.round(z * 100) + '%';
+  if (pct !== lastPct) { lastPct = pct; zoomPct.textContent = pct; }
+  // promote while moving (cheap pan/zoom), drop after so pixelated images re-raster crisp
+  world.classList.add('moving');
+  clearTimeout(movingT);
+  movingT = setTimeout(() => world.classList.remove('moving'), 200);
+  scheduleSave();
+}
+function zoomAt(sx, sy, nz) {
+  nz = clamp(nz, ZMIN, ZMAX);
+  const [wx, wy] = toWorld(sx, sy);
+  view.x = sx - wx * nz; view.y = sy - wy * nz; view.z = nz;
+  queueView();
+}
+
+// critically damped spring on [centerX, centerY, log zoom]; retargets from the live value
+const S = { raf: 0, v: [0, 0, 0], t: null, last: 0 };
+function stopSpring() { cancelAnimationFrame(S.raf); S.raf = 0; S.v = [0, 0, 0]; S.t = null; }
+function setCenter(cx, cy, z) { view.z = z; view.x = vw / 2 - cx * z; view.y = vh / 2 - cy * z; }
+function animateTo(cx, cy, z) {
+  z = clamp(z, ZMIN, ZMAX);
+  if (reduceMotion.matches) { stopSpring(); setCenter(cx, cy, z); queueView(); return; }
+  S.t = [cx, cy, Math.log(z)];
+  if (!S.raf) { S.last = 0; S.raf = requestAnimationFrame(springStep); }
+}
+// integrated in fixed 1/240s substeps of the rAF timestamp delta, so 60Hz and 120Hz trace the same curve
+function springStep(now) {
+  const dt = S.last ? Math.min((now - S.last) / 1000, 1 / 20) : 1 / 120; S.last = now;
+  const w = 2 * Math.PI / 0.35, z = view.z, H = 1 / 240;
+  const p = [...toWorld(vw / 2, vh / 2), Math.log(z)];
+  for (let left = dt; left > 0; left -= H) {
+    const h = Math.min(left, H);
+    for (let i = 0; i < 3; i++) { S.v[i] += (-w * w * (p[i] - S.t[i]) - 2 * w * S.v[i]) * h; p[i] += S.v[i] * h; }
+  }
+  let moving = false;
+  for (let i = 0; i < 3; i++) {
+    const eps = i < 2 ? 0.3 / z : 0.0005;
+    if (Math.abs(p[i] - S.t[i]) > eps || Math.abs(S.v[i]) > eps * 10) moving = true;
+  }
+  const q = moving ? p : S.t;
+  setCenter(q[0], q[1], Math.exp(q[2]));
+  applyView();
+  if (moving) S.raf = requestAnimationFrame(springStep); else stopSpring();
+}
+const viewCenter = () => S.t ? [S.t[0], S.t[1]] : toWorld(vw / 2, vh / 2);
+const viewZoom = () => S.t ? Math.exp(S.t[2]) : view.z;
+function zoomBy(f) { const [cx, cy] = viewCenter(); animateTo(cx, cy, viewZoom() * f); }
+function zoom100() { const [cx, cy] = viewCenter(); animateTo(cx, cy, 1); }
+function fitRect(r, maxZ = 8) {
+  const pad = 96;
+  const z = Math.min((vw - pad * 2) / Math.max(r.w, 1), (vh - pad * 2) / Math.max(r.h, 1));
+  animateTo(r.x + r.w / 2, r.y + r.h / 2, Math.min(z, maxZ));
+}
+function fitView() { const l = sel.size ? selItems() : board.items; if (l.length) fitRect(bounds(l)); }
+
+addEventListener('wheel', e => {
+  if (e.target.closest?.('dialog,[popover]')) return;
+  e.preventDefault(); stopSpring();
+  let dx = e.deltaX, dy = e.deltaY;
+  if (e.deltaMode === 1) { dx *= 16; dy *= 16; }
+  if (e.ctrlKey || e.metaKey) zoomAt(e.clientX, e.clientY, view.z * Math.exp(-clamp(dy, -25, 25) * 0.01));
+  else {
+    if (e.shiftKey && !dx) { dx = dy; dy = 0; }
+    view.x -= dx; view.y -= dy; queueView();
+  }
+}, { passive: false });
+let gestureZ = null; // Safari trackpad pinch
+addEventListener('gesturestart', e => { if ($('dialog[open]')) return; e.preventDefault(); stopSpring(); gestureZ = view.z; });
+addEventListener('gesturechange', e => { if (gestureZ === null) return; e.preventDefault(); zoomAt(e.clientX, e.clientY, gestureZ * e.scale); });
+addEventListener('gestureend', () => { gestureZ = null; });
+addEventListener('resize', () => { vw = innerWidth; vh = innerHeight; });
+
+// ── items ─────────────────────────────────────────────
+const selItems = () => board.items.filter(i => sel.has(i.id));
+const emptyEl = $('#empty');
+function bounds(list) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const i of list) { x0 = Math.min(x0, i.x); y0 = Math.min(y0, i.y); x1 = Math.max(x1, i.x + i.w); y1 = Math.max(y1, i.y + i.h); }
+  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+}
+const place = (el, o) => { // skips unchanged items so a re-render doesn't restyle thousands
+  if (el._x === o.x && el._y === o.y) return;
+  el._x = o.x; el._y = o.y; el.style.transform = `translate(${o.x}px,${o.y}px)`;
+};
+function appendEls(list) { const f = document.createDocumentFragment(); for (const i of list) f.append(els.get(i.id)); world.append(f); }
+function itemEl(it) {
+  const el = document.createElement('div');
+  el.className = 'item'; el.dataset.id = it.id;
+  const img = new Image(it.w, it.h);
+  img.loading = 'lazy'; img.decoding = 'async'; img.draggable = false; img.alt = `프레임 ${it.n}`;
+  img.src = it.src;
+  const lb = document.createElement('span');
+  lb.className = 'lbl'; lb.textContent = `${fmt(it.t)} · #${it.n}`;
+  el.append(img, lb);
+  if (fresh.delete(it.id)) {
+    el.classList.add('enter');
+    el.addEventListener('animationend', () => el.classList.remove('enter'), { once: true });
+  }
+  return el;
+}
+function render() {
+  const live = new Set(), count = new Map(), add = document.createDocumentFragment(); // one DOM insert, even for thousands
+  for (const it of board.items) {
+    live.add(it.id);
+    let el = els.get(it.id);
+    if (!el) { el = itemEl(it); els.set(it.id, el); add.append(el); }
+    place(el, it);
+    el.classList.toggle('sel', sel.has(it.id));
+    if (it.group) count.set(it.group, (count.get(it.group) || 0) + 1);
+  }
+  world.append(add);
+  for (const [id, el] of els) if (!live.has(id)) { el.remove(); els.delete(id); }
+  const shown = new Set();
+  for (const g of board.groups) {
+    if (!count.get(g.id) && !jobs.has(g.id)) continue;
+    shown.add(g.id);
+    let el = gels.get(g.id);
+    if (!el) {
+      el = document.createElement('div'); el.className = 'ghead'; el.dataset.g = g.id;
+      el.append(document.createElement('span'));
+      gels.set(g.id, el); world.prepend(el);
+    }
+    place(el, g);
+    el.firstChild.textContent = `${g.title} · ${fmtS(g.t0)}–${fmtS(g.t1)} · ${count.get(g.id) || 0}장`;
+  }
+  for (const [id, el] of gels) if (!shown.has(id)) { el.remove(); gels.delete(id); }
+  emptyEl.hidden = board.items.length > 0 || jobs.size > 0;
+  scheduleSave();
+}
+function pruneGroups() {
+  const used = new Set(board.items.map(i => i.group));
+  board.groups = board.groups.filter(g => used.has(g.id) || jobs.has(g.id));
+}
+function duplicate(list, dx, dy) {
+  const out = list.map(i => ({ ...i, id: uid(), x: i.x + dx, y: i.y + dy, group: null }));
+  board.items.push(...out);
+  return out;
+}
+function bringToFront(list) {
+  const s = new Set(list);
+  board.items = board.items.filter(i => !s.has(i)).concat(list);
+  appendEls(list);
+}
+function dupSel() { const l = selItems(); if (!l.length) return; pushUndo(); sel = new Set(duplicate(l, 16, 16).map(i => i.id)); render(); }
+function deleteSel() {
+  if (!sel.size) return;
+  pushUndo();
+  board.items = board.items.filter(i => !sel.has(i.id));
+  sel.clear(); pruneGroups(); render();
+}
+function arrange(mode) {
+  const list = selItems(); if (list.length < 2) return;
+  pushUndo();
+  const gi = new Map(board.groups.map((g, i) => [g.id, i]));
+  list.sort((a, b) => (gi.get(a.group) ?? 1e9) - (gi.get(b.group) ?? 1e9) || a.n - b.n);
+  const b = bounds(list);
+  if (mode === 'row') {
+    let x = b.x;
+    for (const it of list) { it.x = x; it.y = b.y; x += it.w + GAP; }
+  } else {
+    const cols = Math.ceil(Math.sqrt(list.length));
+    const cw = Math.max(...list.map(i => i.w)) + GAP, ch = Math.max(...list.map(i => i.h)) + GAP;
+    list.forEach((it, k) => { it.x = b.x + (k % cols) * cw; it.y = b.y + Math.floor(k / cols) * ch; });
+  }
+  render();
+}
+function download(href, name) { const a = document.createElement('a'); a.href = href; a.download = name; a.click(); }
+function saveSel() { selItems().forEach((it, k) => setTimeout(() => download(it.src, `frame_${pad(it.n, 6)}.png`), k * 150)); }
+
+// undo: snapshot stack, one push per mutation (a whole drag counts once)
+const snap = () => ({ items: board.items.map(i => ({ ...i })), groups: board.groups.map(g => ({ ...g })) });
+function pushUndo() { undoStack.push(snap()); if (undoStack.length > 100) undoStack.shift(); redoStack = []; }
+function restore(from, to) {
+  if (!from.length) return;
+  to.push(snap());
+  const s = from.pop();
+  board.items = s.items; board.groups = s.groups;
+  sel.clear(); render();
+  appendEls(board.items); // DOM stacking = model order (copy uses it)
+}
+const undo = () => restore(undoStack, redoStack), redo = () => restore(redoStack, undoStack);
+
+// ── selection & board pointer ─────────────────────────
+function setSel(next) { // touches only items whose selection changed
+  for (const id of sel) if (!next.has(id)) els.get(id)?.classList.remove('sel');
+  for (const id of next) if (!sel.has(id)) els.get(id)?.classList.add('sel');
+  sel = next;
+}
+function selectAll() { setSel(new Set(board.items.map(i => i.id))); }
+let drag = null, spaceDown = false;
+viewport.addEventListener('mousedown', e => { if (e.button === 1) e.preventDefault(); }); // no autoscroll
+viewport.addEventListener('pointerdown', e => {
+  stopSpring();
+  if (drag) return;
+  const pan = e.button === 1 || (e.button === 0 && spaceDown);
+  if (!pan && e.button !== 0) return;
+  e.preventDefault();
+  viewport.setPointerCapture(e.pointerId);
+  const base = { sx: e.clientX, sy: e.clientY, moved: false };
+  const node = e.target.closest('.item'), head = e.target.closest('.ghead');
+  if (pan) drag = { ...base, type: 'pan', vx: view.x, vy: view.y };
+  else if (node) {
+    const id = node.dataset.id;
+    if (e.shiftKey || (MAC ? e.metaKey : e.ctrlKey)) { const n = new Set(sel); n.has(id) ? n.delete(id) : n.add(id); setSel(n); }
+    else if (!sel.has(id)) setSel(new Set([id]));
+    else base.only = id; // plain click on a selected item narrows on release (if not dragged)
+    drag = sel.has(id) ? { ...base, type: 'move', ids: new Set(sel), alt: e.altKey } : null;
+  } else if (head) {
+    const gid = head.dataset.g;
+    setSel(new Set(board.items.filter(i => i.group === gid).map(i => i.id)));
+    drag = { ...base, type: 'move', ids: new Set(sel), gid, alt: false };
+  } else drag = { ...base, type: 'marquee', keep: e.shiftKey ? new Set(sel) : new Set() };
+  viewport.classList.toggle('panning', pan);
+});
+function startMove(d) {
+  pushUndo();
+  let list = board.items.filter(i => d.ids.has(i.id));
+  if (d.alt) { list = duplicate(list, 0, 0); sel = new Set(list.map(i => i.id)); }
+  else bringToFront(list);
+  d.list = list; d.orig = list.map(i => [i.x, i.y]);
+  d.g = d.gid && board.groups.find(g => g.id === d.gid);
+  if (d.g) d.gOrig = [d.g.x, d.g.y];
+  render();
+}
+const dragTask = frameTask(dragFrame);
+viewport.addEventListener('pointermove', e => {
+  pointer.x = e.clientX; pointer.y = e.clientY;
+  if (!drag) return;
+  drag.ex = e.clientX; drag.ey = e.clientY; dragTask.queue();
+});
+function dragFrame() {
+  const d = drag; if (!d) return;
+  const dx = d.ex - d.sx, dy = d.ey - d.sy;
+  if (!d.moved) {
+    if (d.type !== 'pan' && Math.hypot(dx, dy) < 3) return;
+    d.moved = true;
+    if (d.type === 'move') startMove(d);
+  }
+  if (d.type === 'pan') { view.x = d.vx + dx; view.y = d.vy + dy; applyView(); } // already in a frame
+  else if (d.type === 'move') {
+    const wx = Math.round(dx / view.z), wy = Math.round(dy / view.z);
+    d.list.forEach((it, k) => { it.x = d.orig[k][0] + wx; it.y = d.orig[k][1] + wy; place(els.get(it.id), it); });
+    if (d.g) { d.g.x = d.gOrig[0] + wx; d.g.y = d.gOrig[1] + wy; const el = gels.get(d.g.id); if (el) place(el, d.g); }
+  } else {
+    const x0 = Math.min(d.sx, d.ex), y0 = Math.min(d.sy, d.ey), w = Math.abs(dx), h = Math.abs(dy);
+    marqueeEl.style.transform = `translate(${x0}px,${y0}px)`;
+    marqueeEl.style.width = w + 'px'; marqueeEl.style.height = h + 'px';
+    marqueeEl.hidden = false;
+    const [a, b] = toWorld(x0, y0), [c, f] = toWorld(x0 + w, y0 + h);
+    const next = new Set(d.keep);
+    for (const it of board.items) if (it.x < c && it.x + it.w > a && it.y < f && it.y + it.h > b) next.add(it.id);
+    setSel(next);
+  }
+}
+function endDrag(e) {
+  dragTask.flush(); // the last move may still be waiting for its frame
+  const d = drag; if (!d) return;
+  drag = null;
+  viewport.classList.remove('panning'); marqueeEl.hidden = true;
+  if (d.type === 'move' && !d.moved && d.only) setSel(new Set([d.only]));
+  if (d.type === 'marquee' && !d.moved && !e.shiftKey) setSel(new Set());
+  if (d.type === 'move' && d.moved) render();
+}
+viewport.addEventListener('pointerup', endDrag);
+viewport.addEventListener('pointercancel', endDrag);
+
+// context menu
+const menu = $('#menu');
+viewport.addEventListener('contextmenu', e => {
+  e.preventDefault();
+  const node = e.target.closest('.item'); if (!node || !menu.showPopover) return;
+  if (!sel.has(node.dataset.id)) setSel(new Set([node.dataset.id]));
+  hideMenu(); menu.showPopover();
+  const r = menu.getBoundingClientRect();
+  menu.style.left = Math.min(e.clientX, vw - r.width - 8) + 'px';
+  menu.style.top = Math.min(e.clientY, vh - r.height - 8) + 'px';
+});
+// manual popover: macOS fires contextmenu on mouse-down, so auto light-dismiss would close it on release
+function hideMenu() { if (menu.matches(':popover-open')) menu.hidePopover(); }
+addEventListener('pointerdown', e => { if (!menu.contains(e.target)) hideMenu(); }, true);
+const ACT = { copy: copySel, dup: dupSel, save: saveSel, row: () => arrange('row'), grid: () => arrange('grid'), del: deleteSel };
+menu.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; hideMenu(); ACT[b.dataset.act](); });
+
+// ── clipboard ─────────────────────────────────────────
+async function composite(list, b) {
+  const c = document.createElement('canvas');
+  c.width = b.w; c.height = b.h;
+  const ctx = c.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  const imgs = await Promise.all(list.map(async it => { const im = new Image(); im.src = it.src; await im.decode(); return im; }));
+  list.forEach((it, k) => ctx.drawImage(imgs[k], it.x - b.x, it.y - b.y, it.w, it.h));
+  return new Promise((res, rej) => c.toBlob(bl => bl ? res(bl) : rej(new Error('이미지를 만들지 못했어요')), 'image/png'));
+}
+async function copySel() {
+  const list = selItems(); if (!list.length) return;
+  clip = list.map(i => ({ ...i }));
+  const b = bounds(list);
+  if (b.w > 16384 || b.h > 16384 || b.w * b.h > 16384 * 16384) { toast('선택한 영역이 너무 커서 이미지로 복사할 수 없어요 — 조금 모아서 다시 해보세요', true); return; }
+  const blob = composite(list, b);
+  blob.catch(() => {}); // handled below
+  let hideBusy = null;
+  const slow = setTimeout(() => { hideBusy = toast('복사 중…'); }, 150);
+  try {
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+    hideBusy?.();
+    toast(list.length === 1 ? '이미지를 복사했어요 — Aseprite나 Figma에 붙여넣을 수 있어요' : `${list.length}장을 한 장으로 복사했어요`);
+  } catch {
+    try {
+      const url = URL.createObjectURL(await blob);
+      download(url, 'frames.png');
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      hideBusy?.();
+      toast('클립보드에 넣지 못해서 PNG 파일로 저장했어요');
+    } catch (err) { hideBusy?.(); toast(err.message || '이미지를 불러오지 못했어요', true); }
+  } finally { clearTimeout(slow); }
+}
+function paste() {
+  if (!clip.length) return;
+  pushUndo();
+  const b = bounds(clip), [wx, wy] = toWorld(pointer.x, pointer.y);
+  sel = new Set(duplicate(clip, Math.round(wx - b.x - b.w / 2), Math.round(wy - b.y - b.h / 2)).map(i => i.id));
+  render();
+}
+
+// ── keyboard ──────────────────────────────────────────
+addEventListener('keydown', e => {
+  if (dead) return;
+  if ($('dialog[open]')) { if (editorDlg.open) editorKey(e); return; }
+  if (e.target.closest?.('input,textarea,[contenteditable]')) return;
+  const c = e.code, mod = MAC ? e.metaKey : e.ctrlKey;
+  if (c === 'Space') { e.preventDefault(); spaceDown = true; viewport.classList.add('grab'); return; }
+  if (drag) return; // editing mid-drag would desync the dragged items from the board
+  const f = mod
+    ? { KeyA: selectAll, KeyD: dupSel, KeyC: copySel, KeyV: paste, KeyZ: e.shiftKey ? redo : undo, KeyY: redo, Equal: () => zoomBy(1.5), Minus: () => zoomBy(1 / 1.5), Digit0: fitView }[c]
+    : e.altKey ? null
+    : { KeyF: fitView, Digit1: zoom100, Numpad1: zoom100, Escape: () => { hideMenu(); setSel(new Set()); }, Delete: deleteSel, Backspace: deleteSel, Equal: () => zoomBy(1.5), Minus: () => zoomBy(1 / 1.5) }[c];
+  if (f) { e.preventDefault(); f(); }
+});
+addEventListener('keyup', e => {
+  if (e.code !== 'Space') return;
+  spaceDown = false; viewport.classList.remove('grab');
+  if (!importDlg.open && e.target.closest?.('button')) e.preventDefault(); // Space is play/pan, not "click"
+});
+addEventListener('blur', () => { spaceDown = false; viewport.classList.remove('grab'); }); // keyup is lost on app switch
+
+// ── chrome: toolbar, zoom, recent ─────────────────────
+document.querySelectorAll('[data-new]').forEach(b => b.addEventListener('click', () => openImport(b)));
+$('#zIn').addEventListener('click', () => zoomBy(1.5));
+$('#zOut').addEventListener('click', () => zoomBy(1 / 1.5));
+zoomPct.addEventListener('click', zoom100);
+$('#zFit').addEventListener('click', fitView);
+document.querySelectorAll('kbd[data-k]').forEach(k => { k.textContent = MOD + k.dataset.k; });
+$('#delKey').textContent = MAC ? '⌫' : 'Del';
+$('#keysHint').textContent = `스크롤로 이동 · ${MAC ? '⌘' : 'Ctrl'} + 스크롤 또는 핀치로 확대 · ${MOD}C로 이미지 복사`;
+
+const recentPop = $('#recent'), recentBtn = $('#recentBtn'), recentList = $('#recentList');
+function note(t) { const p = document.createElement('p'); p.className = 'muted'; p.textContent = t; return p; }
+function vidRow(v) {
+  const b = document.createElement('button'); b.className = 'vid';
+  const t = document.createElement('b'); t.textContent = v.title || v.id;
+  const s = document.createElement('small');
+  s.textContent = v.status === 'ready' ? `${v.width}×${v.height} · ${Math.round(v.fps)}fps · ${fmtS(v.duration)}` : `받는 중 ${Math.round(v.progress * 100)}%`;
+  b.disabled = v.status !== 'ready';
+  b.append(t, s);
+  b.addEventListener('click', () => { recentPop.hidePopover(); openEditor(v, recentBtn); });
+  return b;
+}
+recentPop.addEventListener('beforetoggle', async e => {
+  if (e.newState !== 'open') return;
+  const r = recentBtn.getBoundingClientRect();
+  recentPop.style.left = r.left + 'px'; recentPop.style.top = r.bottom + 8 + 'px';
+  recentList.replaceChildren(note('불러오는 중…'));
+  try {
+    const list = (await api('/api/videos')).videos.filter(v => v.status !== 'error');
+    recentList.replaceChildren(...(list.length ? list.map(vidRow) : [note('아직 불러온 영상이 없어요')]));
+  } catch (err) { recentList.replaceChildren(note(err.message)); }
+});
+
+// ── sheets ────────────────────────────────────────────
+function openSheet(d, from) {
+  clearTimeout(d._t);
+  if (!d.open) d.showModal();
+  const s = d.firstElementChild;
+  if (from) { // grow out of the button that opened it, shrink back into it
+    const b = from.getBoundingClientRect();
+    s.style.transformOrigin = `${b.left + b.width / 2 - s.offsetLeft}px ${b.top + b.height / 2 - s.offsetTop}px`;
+  } else s.style.transformOrigin = '';
+  void d.offsetWidth;
+  d.classList.add('in');
+}
+function closeSheet(d) {
+  if (!d.open) return;
+  d.classList.remove('in');
+  clearTimeout(d._t);
+  d._t = setTimeout(() => d.close(), 230);
+}
+for (const d of document.querySelectorAll('dialog')) {
+  d.addEventListener('cancel', e => { e.preventDefault(); closeSheet(d); });
+  d.addEventListener('pointerdown', e => { d._down = e.target === d; });
+  d.addEventListener('click', e => { if (e.target === d && d._down) closeSheet(d); });
+}
+
+// ── import ────────────────────────────────────────────
+const importDlg = $('#import'), urlIn = $('#url'), impGo = $('#impGo'), impBar = $('#impBar');
+let impTok = 0;
+function setImp({ title = '', p = null, busy = false, text = '', err = '' } = {}) { // busy = indeterminate bar
+  $('#impTitle').textContent = title;
+  impBar.hidden = p === null && !busy;
+  impBar.classList.toggle('indet', busy);
+  $('#impFill').style.transform = busy ? '' : `scaleX(${p ?? 0})`;
+  $('#impText').textContent = text;
+  $('#impErr').textContent = err;
+}
+function openImport(from) { urlIn.value = ''; setImp(); openSheet(importDlg, from); }
+importDlg.addEventListener('close', () => { impTok++; busyBtn(impGo, false); });
+urlIn.addEventListener('paste', () => setTimeout(() => { if (/^\s*https?:\/\//.test(urlIn.value)) startImport(); }));
+$('#impForm').addEventListener('submit', e => { e.preventDefault(); startImport(); });
+async function startImport() {
+  const url = urlIn.value.trim();
+  if (!url || impGo.disabled) return;
+  const tok = ++impTok;
+  busyBtn(impGo, true); // feedback before the request: yt-dlp metadata takes seconds (longer on first launch)
+  setImp({ busy: true, text: '영상 정보를 확인하는 중…' });
+  try {
+    const { id } = await api('/api/videos', { url });
+    while (tok === impTok) {
+      const m = await api(`/api/videos/${encodeURIComponent(id)}`);
+      if (tok !== impTok) return;
+      if (m.status === 'ready') { closeSheet(importDlg); openEditor(m); return; }
+      if (m.status === 'error') throw new Error(m.error || '영상을 받지 못했어요');
+      setImp(m.progress ? { title: m.title, p: m.progress, text: `다운로드 중 ${Math.round(m.progress * 100)}%` }
+        : { title: m.title, busy: true, text: '다운로드를 준비하는 중…' });
+      await sleep(500);
+    }
+  } catch (err) {
+    if (tok === impTok) { setImp({ err: err.message }); toast(err.message, true); }
+  } finally {
+    if (tok === impTok) busyBtn(impGo, false);
+  }
+}
+
+// ── editor ────────────────────────────────────────────
+const editorDlg = $('#editor'), video = $('#video'), stage = $('#stage'), overlay = $('#overlay'), boxEl = $('#box');
+const track = $('#track'), tHead = $('#tHead'), tRange = $('#tRange'), playBtn = $('#play'), goBtn = $('#goBtn');
+const followIn = $('#follow'), dedupeIn = $('#dedupe'), edErr = $('#edErr');
+const ICON_PLAY = '<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5v11l9-5.5z"/></svg>';
+const ICON_PAUSE = '<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5h3v11H4zM9 2.5h3v11H9z"/></svg>';
+const mem = new Map(); // per video id: box/range/options, this session only
+const timeTxt = $('#timeTxt'), hintTxt = $('#hintTxt'), goStart = $('#goStart');
+let E = null, edRaf = 0, ed = null, tr = null, errT = 0, stageW = 0, stageH = 0, scrubN = 0;
+
+function openEditor(m, from) {
+  E = { meta: m, fps: m.fps || 30, fc: Math.max(1, m.frame_count || 1), box: null, boxAt: null, start: null, end: null, follow: true, dedupe: true, step: 1, frame: 0, shown: -1, ...mem.get(m.id) };
+  $('#edTitle').textContent = m.title || m.id;
+  if (video.getAttribute('src') !== m.url) video.src = m.url;
+  edErr.textContent = '';
+  playBtn.innerHTML = ICON_PLAY;
+  openSheet(editorDlg, from);
+  seek(E.frame);
+  updateUI(); renderBox();
+  cancelAnimationFrame(edRaf); tick();
+}
+editorDlg.addEventListener('close', () => {
+  video.pause(); cancelAnimationFrame(edRaf);
+  const { box, boxAt, start, end, follow, dedupe, step } = E;
+  mem.set(E.meta.id, { box, boxAt, start, end, follow, dedupe, step, frame: cur() });
+});
+$('#edClose').addEventListener('click', () => closeSheet(editorDlg));
+video.addEventListener('play', () => { playBtn.innerHTML = ICON_PAUSE; playBtn.setAttribute('aria-label', '일시정지 (Space)'); });
+video.addEventListener('pause', () => { playBtn.innerHTML = ICON_PLAY; playBtn.setAttribute('aria-label', '재생 (Space)'); });
+video.addEventListener('error', () => edMsg('영상을 열지 못했어요. 다시 불러와 주세요.'));
+// spinner on the stage while the video loads or a seek waits on the server (CSS delays it so quick seeks don't flash)
+for (const t of ['loadstart', 'seeking', 'waiting']) video.addEventListener(t, () => stage.classList.add('loading'));
+for (const t of ['loadeddata', 'seeked', 'playing', 'canplay', 'error']) video.addEventListener(t, () => stage.classList.remove('loading'));
+
+const cur = () => clamp(Math.floor(video.currentTime * E.fps), 0, E.fc - 1);
+function seek(n) { video.currentTime = (clamp(n, 0, E.fc - 1) + 0.5) / E.fps; }
+function stepFrames(k) { video.pause(); seek(cur() + k); }
+function togglePlay() { if (video.paused) video.play().catch(() => {}); else video.pause(); }
+const defaultEnd = () => Math.min(E.start + Math.round(2 * E.fps), E.fc - 1);
+function edMsg(t) { edErr.textContent = t; clearTimeout(errT); errT = setTimeout(() => { edErr.textContent = ''; }, 5000); }
+
+function tick() {
+  if (!editorDlg.open || dead) return;
+  const n = cur();
+  if (n !== E.shown) {
+    E.shown = n;
+    tHead.style.transform = `translateX(${(n + 0.5) / E.fc * 100}%)`;
+    const t = `${fmt(n / E.fps)} · 프레임 ${n}`;
+    timeTxt.textContent = t;
+    track.setAttribute('aria-valuenow', Math.round((n + 0.5) / E.fc * 100));
+    track.setAttribute('aria-valuetext', t);
+    updateHint(n);
+  }
+  edRaf = requestAnimationFrame(tick);
+}
+function updateHint(n) {
+  const off = !!E.box && E.boxAt !== E.start; // start was moved (I) away from the frame the box was drawn on
+  const stale = !!E.box && E.start !== null && (n !== E.start || off);
+  boxEl.classList.toggle('stale', stale);
+  const hint = !E.box ? '캐릭터 주위를 드래그해서 박스를 그리세요'
+    : off && n === E.start ? '시작 프레임이 바뀌었어요 — 박스를 이 프레임의 캐릭터에 맞게 옮겨주세요'
+    : stale ? `박스는 시작 프레임(#${E.start}) 기준이에요` : '박스를 그린 프레임부터 추적해요';
+  if (hintTxt.textContent !== hint) hintTxt.textContent = hint; // runs every played frame: skip no-op relayouts
+  goStart.hidden = !stale || n === E.start;
+}
+function updateUI() {
+  const { start: s, end: en, fps, fc, step } = E;
+  const has = s !== null && en !== null;
+  $('#rangeTxt').textContent = has ? `${fmt(s / fps)} – ${fmt(en / fps)} (${en - s + 1}프레임)`
+    : '박스를 그리면 그 프레임부터 2초가 잡혀요';
+  tRange.hidden = !has;
+  if (has) tRange.style.transform = `translateX(${s / fc * 100}%) scaleX(${(en - s + 1) / fc})`;
+  const n = has ? Math.floor((en - s) / step) + 1 : 0;
+  const est = $('#estimate');
+  est.textContent = !E.box ? '먼저 캐릭터 주위에 박스를 그려주세요'
+    : !has ? '구간을 정해주세요'
+    : n > MAXN ? `${n}장 — ${MAXN}장까지만 돼요. 구간을 줄이거나 간격을 늘려주세요`
+    : `최대 약 ${n}장`;
+  est.classList.toggle('warn', n > MAXN);
+  goBtn.disabled = !E.box || !has || n > MAXN;
+  followIn.checked = E.follow; dedupeIn.checked = E.dedupe;
+  for (const b of $('#seg').children) b.setAttribute('aria-pressed', +b.dataset.step === step);
+}
+function setStart() {
+  E.start = cur();
+  if (E.end === null || E.end <= E.start) E.end = defaultEnd();
+  updateUI(); updateHint(E.start);
+}
+function setEnd() {
+  const n = cur();
+  if (E.start !== null && n < E.start) { edMsg('끝은 시작보다 뒤에 있어야 해요'); return; }
+  E.end = n; updateUI();
+}
+$('#setIn').addEventListener('click', setStart);
+$('#setOut').addEventListener('click', setEnd);
+goStart.addEventListener('click', () => { video.pause(); seek(E.start); });
+playBtn.addEventListener('click', togglePlay);
+$('#prevF').addEventListener('click', () => stepFrames(-1));
+$('#nextF').addEventListener('click', () => stepFrames(1));
+followIn.addEventListener('change', () => { E.follow = followIn.checked; });
+dedupeIn.addEventListener('change', () => { E.dedupe = dedupeIn.checked; });
+// after a mouse toggle, give focus back to the sheet so Space means play again
+for (const l of document.querySelectorAll('.sw')) l.addEventListener('pointerup', () => setTimeout(() => editorDlg.firstElementChild.focus()));
+$('#seg').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { E.step = +b.dataset.step; updateUI(); } });
+
+function editorKey(e) {
+  const c = e.code;
+  if (c === 'Space' && e.target.closest?.('input')) return; // keyboard users toggle switches with Space
+  if (c === 'Space') { e.preventDefault(); if (!e.repeat) togglePlay(); }
+  else if (c === 'ArrowLeft' || c === 'ArrowRight') { e.preventDefault(); stepFrames((c === 'ArrowRight' ? 1 : -1) * (e.shiftKey ? 10 : 1)); }
+  else if (c === 'KeyI' && !e.metaKey && !e.ctrlKey) setStart();
+  else if (c === 'KeyO' && !e.metaKey && !e.ctrlKey) setEnd();
+}
+
+// timeline: seek continuously while dragging, at most once per frame (rect cached on pointerdown)
+const scrubTask = frameTask(() => seek(scrubN));
+function scrubTo(e) { scrubN = Math.floor(clamp((e.clientX - tr.left) / tr.width, 0, 1) * E.fc); scrubTask.queue(); }
+track.addEventListener('pointerdown', e => {
+  if (e.button !== 0) return;
+  video.pause(); track.setPointerCapture(e.pointerId);
+  tr = track.getBoundingClientRect(); track.classList.add('active'); scrubTo(e);
+});
+track.addEventListener('pointermove', e => { if (tr) scrubTo(e); });
+for (const t of ['pointerup', 'pointercancel']) track.addEventListener(t, () => { tr = null; track.classList.remove('active'); });
+
+// box: video pixel coords, displayed through object-fit: contain letterboxing
+function geo() { // stage size comes from the ResizeObserver: no layout reads while dragging
+  const W = E.meta.width || video.videoWidth || 1, H = E.meta.height || video.videoHeight || 1;
+  const s = Math.min(stageW / W, stageH / H);
+  return { W, H, s, ox: (stageW - W * s) / 2, oy: (stageH - H * s) / 2 };
+}
+function renderBox() {
+  boxEl.hidden = !E.box; if (!E.box) return;
+  const g = geo(), { x, y, w, h } = E.box;
+  boxEl.style.transform = `translate(${g.ox + x * g.s}px,${g.oy + y * g.s}px)`;
+  boxEl.style.width = w * g.s + 'px'; boxEl.style.height = h * g.s + 'px';
+  boxEl.dataset.size = `${Math.round(w)}×${Math.round(h)}`;
+}
+new ResizeObserver(([en]) => { stageW = en.contentRect.width; stageH = en.contentRect.height; if (E) renderBox(); }).observe(stage);
+const vpt = (x, y, g) => [(x - g.r.left - g.ox) / g.s, (y - g.r.top - g.oy) / g.s];
+overlay.addEventListener('pointerdown', e => {
+  if (e.button !== 0 || !E) return;
+  e.preventDefault(); video.pause(); overlay.setPointerCapture(e.pointerId);
+  const g = geo(); g.r = stage.getBoundingClientRect();
+  const [px, py] = vpt(e.clientX, e.clientY, g), c = e.target.dataset.c;
+  ed = { g, px, py, c, moved: false, B0: E.box && { ...E.box },
+    mode: c && E.box ? 'resize' : E.box && e.target.closest('#box') ? 'move' : 'draw' };
+});
+const boxTask = frameTask(boxFrame);
+overlay.addEventListener('pointermove', e => { if (ed) { ed.ex = e.clientX; ed.ey = e.clientY; boxTask.queue(); } });
+function boxFrame() {
+  if (!ed) return;
+  const { g, B0 } = ed;
+  let [px, py] = vpt(ed.ex, ed.ey, g);
+  if (!ed.moved && Math.hypot(px - ed.px, py - ed.py) * g.s < 2) return;
+  ed.moved = true;
+  px = clamp(px, 0, g.W); py = clamp(py, 0, g.H);
+  if (ed.mode === 'draw') {
+    const x0 = clamp(ed.px, 0, g.W), y0 = clamp(ed.py, 0, g.H);
+    E.box = { x: Math.min(x0, px), y: Math.min(y0, py), w: Math.abs(px - x0), h: Math.abs(py - y0) };
+  } else if (ed.mode === 'move') {
+    E.box = { ...B0, x: clamp(B0.x + px - ed.px, 0, g.W - B0.w), y: clamp(B0.y + py - ed.py, 0, g.H - B0.h) };
+  } else {
+    let x0 = B0.x, y0 = B0.y, x1 = x0 + B0.w, y1 = y0 + B0.h;
+    if (ed.c.includes('w')) x0 = Math.min(px, x1 - 4); else x1 = Math.max(px, x0 + 4);
+    if (ed.c.includes('n')) y0 = Math.min(py, y1 - 4); else y1 = Math.max(py, y0 + 4);
+    E.box = { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+  }
+  renderBox(); updateHint(cur());
+}
+function boxEnd() {
+  boxTask.flush();
+  const d = ed; ed = null;
+  if (!d || !d.moved) return;
+  if (d.mode === 'draw' && (E.box.w < 4 || E.box.h < 4)) { E.box = d.B0; renderBox(); updateHint(cur()); return; }
+  E.boxAt = cur(); setStart(); // rule: tracking starts at the frame where the box was drawn/adjusted
+}
+overlay.addEventListener('pointerup', boxEnd);
+overlay.addEventListener('pointercancel', boxEnd);
+
+goBtn.addEventListener('click', async () => {
+  const { meta, box, start, end, step, follow, dedupe, fps } = E;
+  const W = meta.width, H = meta.height;
+  const x = clamp(Math.round(box.x), 0, W - 1), y = clamp(Math.round(box.y), 0, H - 1);
+  const w = clamp(Math.round(box.w), 1, W - x), h = clamp(Math.round(box.h), 1, H - y);
+  busyBtn(goBtn, true);
+  try {
+    const { job_id } = await api(`/api/videos/${encodeURIComponent(meta.id)}/track`, { start, end, step, box: [x, y, w, h], follow, dedupe });
+    closeSheet(editorDlg);
+    startJob(job_id, meta.title || meta.id, { start, end, step, w, h, fps });
+  } catch (err) { edMsg(err.message); toast(err.message, true); updateUI(); }
+  finally { goBtn.classList.remove('busy'); } // on success it stays disabled while the sheet closes
+});
+
+// ── jobs ──────────────────────────────────────────────
+const jobGroup = job => board.groups.find(g => g.id === job.id) || job; // follows header drags & undo
+function startJob(id, title, o) {
+  pushUndo();
+  const rows = Math.ceil((Math.floor((o.end - o.start) / o.step) + 1) / COLS);
+  let x = 0, y = 0;
+  if (board.items.length || jobs.size) { // new group goes below everything, incl. rows still coming
+    let bottom = -Infinity, left = Infinity;
+    if (board.items.length) { const b = bounds(board.items); bottom = b.y + b.h; left = b.x; }
+    for (const j of jobs.values()) { const g = jobGroup(j); bottom = Math.max(bottom, g.y + j.rows * (j.h + GAP)); left = Math.min(left, g.x); }
+    x = left; y = bottom + 80;
+  }
+  const job = { id, x, y, k: 0, rows, h: o.h, fails: 0 };
+  jobs.set(id, job);
+  board.groups.push({ id, title, t0: o.start / o.fps, t1: o.end / o.fps, x, y });
+  const cols = Math.min(COLS, Math.floor((o.end - o.start) / o.step) + 1);
+  job.pill = makePill(job);
+  render();
+  fitRect({ x, y: y - 40, w: cols * (o.w + GAP), h: Math.min(rows, 3) * (o.h + GAP) + 40 }, 4);
+  pollJob(job);
+}
+function makePill(job) {
+  const p = document.createElement('div');
+  p.className = 'pill glass';
+  p.innerHTML = '<span>추출 준비 중…</span><span class="bar indet"><i></i></span><button class="ib" aria-label="추출 취소">✕</button>';
+  const b = p.querySelector('button');
+  b.addEventListener('click', () => {
+    b.disabled = true; job.stopping = true; p.firstChild.textContent = '멈추는 중…';
+    api(`/api/jobs/${job.id}/cancel`, {}).catch(err => { b.disabled = false; job.stopping = false; toast(err.message, true); });
+  });
+  $('#jobs').append(p);
+  return p;
+}
+async function pollJob(job) {
+  for (;;) {
+    let d;
+    try { d = await api(`/api/jobs/${job.id}?since=${job.k}`); job.fails = 0; }
+    catch (err) {
+      if (dead) return;
+      if (err.status === 404 || ++job.fails > 15) { finishJob(job); toast(err.message, true); return; }
+      await sleep(1000); continue;
+    }
+    if (dead) return; // another tab took over and resumes this job
+    const g = jobGroup(job), add = d.frames.map(f => {
+      const k = job.k++;
+      return { id: uid(), src: f.src, n: f.n, t: f.t, w: f.w, h: f.h, group: job.id,
+        x: g.x + (k % COLS) * (f.w + GAP), y: g.y + Math.floor(k / COLS) * (f.h + GAP) };
+    });
+    if (board.groups.includes(g)) for (const it of add) { fresh.add(it.id); board.items.push(it); } // extraction undone: frames wait in redo
+    // streamed frames aren't edits: give them to every snapshot taken after startJob so undo/redo keeps them
+    for (const s of undoStack.concat(redoStack)) {
+      const sg = s.groups.find(x => x.id === job.id);
+      if (sg) s.items.push(...add.map(i => ({ ...i, x: i.x + sg.x - g.x, y: i.y + sg.y - g.y }))); // at that snapshot's header spot
+    }
+    job.pill.firstChild.textContent = job.stopping ? '멈추는 중…' : `추출 중 ${d.processed}/${d.total}`;
+    job.pill.querySelector('.bar').classList.remove('indet');
+    job.pill.querySelector('i').style.transform = `scaleX(${d.total ? d.processed / d.total : 0})`;
+    if (d.frames.length) render();
+    if (d.status !== 'running') {
+      finishJob(job);
+      if (d.status === 'done') toast(`${d.count}장 추출 완료`);
+      else if (d.status === 'cancelled') toast(`추출을 멈췄어요 — ${d.count}장 남겼어요`);
+      else toast(d.error || '추출 중 문제가 생겼어요', true);
+      return;
+    }
+    await sleep(400);
+  }
+}
+function finishJob(job) { jobs.delete(job.id); job.pill.remove(); pruneGroups(); render(); }
+
+// ── theme ─────────────────────────────────────────────
+const THEMES = { auto: '자동', light: '라이트', dark: '다크' }, ORDER = Object.keys(THEMES);
+const SVG = '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">';
+const THEME_ICON = {
+  auto: SVG + '<circle cx="8" cy="8" r="5.75" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 2.25a5.75 5.75 0 0 1 0 11.5z" fill="currentColor"/></svg>',
+  light: SVG + '<g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="2.75"/><path d="M8 1.5v1.25M8 13.25v1.25M1.5 8h1.25M13.25 8h1.25M3.4 3.4l.9.9M11.7 11.7l.9.9M3.4 12.6l.9-.9M11.7 4.3l.9-.9"/></g></svg>',
+  dark: SVG + '<path d="M13.6 9.9A5.75 5.75 0 0 1 6.1 2.4a5.75 5.75 0 1 0 7.5 7.5z" fill="currentColor"/></svg>',
+};
+const themeBtn = $('#themeBtn'), nextPref = () => ORDER[(ORDER.indexOf(themePref) + 1) % ORDER.length];
+let themePref = 'auto';
+try { const p = localStorage.getItem('frameboard.theme'); if (Object.hasOwn(THEMES, p)) themePref = p; } catch { /* no storage: follow the OS */ }
+function setTheme(fade) {
+  themeBtn.innerHTML = THEME_ICON[themePref];
+  themeBtn.title = `테마: ${THEMES[themePref]}`;
+  themeBtn.setAttribute('aria-label', `테마: ${THEMES[themePref]} (누르면 ${THEMES[nextPref()]})`);
+  const t = themeOf(themePref);
+  if (t === document.documentElement.dataset.theme) return;
+  if (fade && document.startViewTransition) document.startViewTransition(() => applyTheme(t)); else applyTheme(t);
+}
+themeBtn.addEventListener('click', () => {
+  themePref = nextPref();
+  try { localStorage.setItem('frameboard.theme', themePref); } catch { /* not persisted */ }
+  setTheme(true);
+});
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => setTheme(true));
+setTheme(false);
+
+// ── init ──────────────────────────────────────────────
+// the server quits a few seconds after the last connection drops: closing the window quits the app.
+// opened after load so it never holds the page in "loading" (busy cursor); the listener also pins it against GC
+addEventListener('load', () => { new EventSource('/api/alive').onerror = () => {}; }, { once: true }); // errors: it reconnects itself
+render();
+applyView();
+for (const job of jobs.values()) { job.pill = makePill(job); pollJob(job); } // extraction still running before reload
+})();
+</script>
+</body>
+</html>

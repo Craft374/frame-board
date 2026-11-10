@@ -1,0 +1,17 @@
+[project]
+name = "frame-board"
+version = "1.0.0"
+description = "YouTube 영상에서 캐릭터 애니메이션 프레임을 뽑아 보드에 모아 보는 로컬 도구"
+requires-python = "==3.12.*"
+dependencies = [
+    "yt-dlp[default]",
+    "deno",
+    "opencv-contrib-python-headless",
+    "numpy",
+]
+
+[dependency-groups]
+build = ["pyinstaller"]
+
+[tool.uv]
+package = false
