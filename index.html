@@ -140,7 +140,12 @@ kbd{font:500 11px/1 var(--mono);color:var(--fg3);padding:3px 5px;border-radius:5
 .empty h1{margin:0;font-size:34px;line-height:1.1;font-weight:700;letter-spacing:-.025em}
 .empty p{margin:0;max-width:30em;color:var(--fg2);font-size:15px}
 .empty .btn{margin-top:14px;pointer-events:auto}
-.empty .muted{margin-top:22px;font-size:12px;letter-spacing:.01em}
+.empty .muted{margin-top:6px;font-size:12px;letter-spacing:.01em}
+.empty .btn+.muted{margin-top:16px}
+.howto{display:flex;gap:10px;margin:18px 0 0;padding:0;list-style:none}
+.howto li{width:168px;padding:14px 14px 16px;border-radius:14px;background:var(--fill);text-align:left;font-size:13px;line-height:1.4;color:var(--fg2)}
+.howto b{display:grid;place-items:center;width:22px;height:22px;margin-bottom:8px;border-radius:50%;background:var(--accent);color:#fff;font-size:12px}
+.howto strong{display:block;margin-bottom:2px;color:var(--fg);font-weight:600}
 
 /* sheets */
 dialog.wrap{position:fixed;inset:0;width:100%;height:100%;max-width:none;max-height:none;margin:0;padding:0;border:0;overflow:hidden;color:inherit;background:var(--scrim);opacity:0;transition:opacity .2s ease}
@@ -158,20 +163,32 @@ dialog::backdrop{background:transparent}
 .status .bar{width:100%}
 .status span:empty{display:none}
 #impText{color:var(--fg2);font-size:13px;font-variant-numeric:tabular-nums}
+.drop{display:flex;align-items:center;justify-content:center;gap:10px;min-height:64px;padding:12px;border:1.5px dashed var(--hair);border-radius:12px;color:var(--fg2);font-size:13px;transition:border-color .15s,background-color .15s}
+.drop.over{border-color:var(--accent);background:var(--sel)}
+.drop .btn{flex:none}
 
 /* editor */
 .ed{width:92vw;height:90vh;border-radius:18px;display:grid;grid-template-rows:auto minmax(0,1fr) auto auto auto;overflow:hidden;outline:none}
 .edhead{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 8px 8px 18px}
-.edhead h2{margin:0;font-size:15px;font-weight:600;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.edhead h2{flex:0 1 auto;min-width:0;margin:0;font-size:15px;font-weight:600;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.edsteps{display:flex;align-items:center;gap:4px;margin:0 auto;padding:0;list-style:none;font-size:12.5px;color:var(--fg3);white-space:nowrap}
+.edsteps li{display:flex;align-items:center;gap:6px;padding:4px 10px 4px 5px;border-radius:999px;transition:background-color .2s,color .2s}
+.edsteps li b{display:grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--fill-press);color:var(--fg2);font-size:11px}
+.edsteps li+li::before{content:"";width:14px;height:1px;margin-right:6px;background:var(--hair)}
+.edsteps .now{color:var(--fg);font-weight:600;background:var(--fill)}
+.edsteps .now b{background:var(--accent);color:#fff}
+.edsteps .done b{background:var(--on);color:#fff}
 .stage{position:relative;overflow:hidden;background:#000}
 .stage.loading::after{position:absolute;left:50%;top:50%;width:28px;height:28px;margin:-14px;border-width:3px;color:rgba(255,255,255,.85);pointer-events:none;animation:spin .7s linear infinite,fade .2s .3s both} /* shows only if the wait lasts > .3s */
-#video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+#video,#still{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;image-rendering:pixelated}
 .overlay{position:absolute;inset:0;cursor:crosshair;touch-action:none}
-#box{position:absolute;left:0;top:0;border:1.5px solid var(--accent);box-shadow:0 0 0 9999px rgba(0,0,0,.4),0 0 0 1px rgba(0,0,0,.5);cursor:move}
-#box::after{content:attr(data-size);position:absolute;left:-1.5px;bottom:100%;margin-bottom:4px;padding:3px 5px;border-radius:4px;background:var(--accent);color:#fff;font:600 11px/1 var(--mono);white-space:nowrap}
-#box.stale{border-style:dashed;border-color:rgba(255,255,255,.75);box-shadow:none}
-#box.stale::after{background:rgba(60,60,64,.92)}
-#box span{position:absolute;width:12px;height:12px;border-radius:3px;background:#fff;border:1.5px solid var(--accent)}
+/* box color = tracking state of this frame: blue tracked, red lost, amber guessed, dashed = not computed yet */
+#box{--c:#0a84ff;position:absolute;left:0;top:0;border:1.5px solid var(--c);box-shadow:0 0 0 9999px rgba(0,0,0,.4),0 0 0 1px rgba(0,0,0,.5);cursor:move}
+#box::after{content:attr(data-label);position:absolute;left:-1.5px;bottom:100%;margin-bottom:4px;padding:3px 5px;border-radius:4px;background:var(--c);color:#fff;font:600 11px/1 var(--mono);white-space:nowrap}
+#box.lost{--c:#ff453a}
+#box.guess{--c:#ff9f0a}
+#box.wait{--c:rgba(140,140,148,.95);border-style:dashed;box-shadow:none}
+#box span{position:absolute;width:12px;height:12px;border-radius:3px;background:#fff;border:1.5px solid var(--c)}
 #box span::before{content:"";position:absolute;inset:-8px}
 #box [data-c=nw]{left:-7px;top:-7px;cursor:nwse-resize}
 #box [data-c=se]{right:-7px;bottom:-7px;cursor:nwse-resize}
@@ -182,15 +199,22 @@ dialog::backdrop{background:transparent}
 .scrub{display:flex;align-items:center;gap:4px;padding:10px 14px 4px}
 .track{position:relative;flex:1;height:28px;margin:0 10px;touch-action:none}
 .rail{position:absolute;left:0;right:0;top:12px;height:4px;border-radius:2px;background:var(--fill-press)}
-#tRange{position:absolute;left:0;right:0;top:10px;height:8px;background:color-mix(in srgb,var(--accent) 60%,transparent);transform-origin:left}
+#tRange{position:absolute;left:0;right:0;top:10px;height:8px;background:color-mix(in srgb,var(--accent) 30%,transparent);transform-origin:left}
+#tMarks{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none}
 #tHead{position:absolute;inset:0;pointer-events:none}
 #tHead i{position:absolute;left:-7px;top:7px;width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 0 0 .5px rgba(0,0,0,.12),0 1px 4px rgba(0,0,0,.4);transition:transform .1s}
 .track.active #tHead i{transform:scale(1.3)}
 #timeTxt{min-width:160px;text-align:right;color:var(--fg2);font:500 12.5px/1 var(--mono)}
+#zoomT{margin-left:10px;font-size:12.5px;white-space:nowrap}
 .panel{display:flex;flex-wrap:wrap;align-items:flex-start;gap:28px;padding:12px 18px;border-top:1px solid var(--hair)}
 .grp{display:grid;align-content:start;gap:8px}
 .grp h3{margin:0;font-size:11px;font-weight:600;letter-spacing:.06em;color:var(--fg3)}
 .go{margin-left:auto;justify-items:end;text-align:right}
+.trk{min-width:220px}
+#trkTxt{margin:0;font-size:13px;font-variant-numeric:tabular-nums}
+#trkTxt.warn{color:var(--warn)}
+#trkTxt.ok{color:var(--on)}
+.trk .bar{width:100%}
 #estimate{margin:0;font-size:13px;color:var(--fg2)}
 #estimate.warn{color:var(--warn)}
 #rangeTxt{margin:0;font-size:13px;font-variant-numeric:tabular-nums}
@@ -228,15 +252,21 @@ dialog::backdrop{background:transparent}
 
 <section id="empty" class="empty">
   <h1>프레임 보드</h1>
-  <p>유튜브 영상에서 캐릭터를 골라 프레임을 뽑아 여기에 펼쳐보세요</p>
-  <button class="btn primary lg" data-new>+ 새 영상</button>
+  <p>게임 영상이나 GIF에서 캐릭터 동작을 프레임 단위로 잘라 여기에 펼쳐 봐요</p>
+  <ol class="howto">
+    <li><b>1</b><strong>영상 열기</strong>유튜브 링크나 GIF를 붙여넣어요</li>
+    <li><b>2</b><strong>박스 그리기</strong>캐릭터를 감싸면 박스가 알아서 따라가요</li>
+    <li><b>3</b><strong>확인하고 뽑기</strong>재생해서 잘 따라가면 프레임을 뽑아요</li>
+  </ol>
+  <button class="btn primary lg" data-new>+ 영상이나 GIF 열기</button>
+  <p class="muted" id="pasteHint"></p>
   <p class="muted" id="keysHint"></p>
 </section>
 
 <header class="toolbar glass">
   <span class="brand"><img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1024 1024'%3E%3Cdefs%3E%3ClinearGradient id='bg' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233b8cff'/%3E%3Cstop offset='1' stop-color='%235b3df5'/%3E%3C/linearGradient%3E%3ClinearGradient id='hl' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23fff' stop-opacity='.22'/%3E%3Cstop offset='.5' stop-color='%23fff' stop-opacity='0'/%3E%3C/linearGradient%3E%3Cfilter id='sh' x='-20%25' y='-20%25' width='140%25' height='140%25'%3E%3CfeDropShadow dx='0' dy='14' stdDeviation='18' flood-color='%23120a4a' flood-opacity='.35'/%3E%3C/filter%3E%3C/defs%3E%3Crect x='100' y='100' width='824' height='824' rx='186' fill='url(%23bg)'/%3E%3Crect x='100' y='100' width='824' height='824' rx='186' fill='url(%23hl)'/%3E%3Crect x='392' y='196' width='452' height='520' rx='44' fill='%23fff' opacity='.22'/%3E%3Crect x='294' y='248' width='452' height='520' rx='44' fill='%23fff' opacity='.42'/%3E%3Cg filter='url(%23sh)'%3E%3Crect x='196' y='300' width='452' height='520' rx='44' fill='%23fff'/%3E%3C/g%3E%3Cg transform='translate(286.0,396.0)'%3E%3Crect x='68' y='0' width='34' height='34' fill='%231c2242'/%3E%3Crect x='102' y='0' width='34' height='34' fill='%231c2242'/%3E%3Crect x='136' y='0' width='34' height='34' fill='%231c2242'/%3E%3Crect x='170' y='0' width='34' height='34' fill='%231c2242'/%3E%3Crect x='34' y='34' width='34' height='34' fill='%231c2242'/%3E%3Crect x='68' y='34' width='34' height='34' fill='%231c2242'/%3E%3Crect x='102' y='34' width='34' height='34' fill='%231c2242'/%3E%3Crect x='136' y='34' width='34' height='34' fill='%231c2242'/%3E%3Crect x='170' y='34' width='34' height='34' fill='%231c2242'/%3E%3Crect x='204' y='34' width='34' height='34' fill='%231c2242'/%3E%3Crect x='34' y='68' width='34' height='34' fill='%231c2242'/%3E%3Crect x='68' y='68' width='34' height='34' fill='%23fff'/%3E%3Crect x='102' y='68' width='34' height='34' fill='%231c2242'/%3E%3Crect x='136' y='68' width='34' height='34' fill='%231c2242'/%3E%3Crect x='170' y='68' width='34' height='34' fill='%23fff'/%3E%3Crect x='204' y='68' width='34' height='34' fill='%231c2242'/%3E%3Crect x='34' y='102' width='34' height='34' fill='%231c2242'/%3E%3Crect x='68' y='102' width='34' height='34' fill='%231c2242'/%3E%3Crect x='102' y='102' width='34' height='34' fill='%231c2242'/%3E%3Crect x='136' y='102' width='34' height='34' fill='%231c2242'/%3E%3Crect x='170' y='102' width='34' height='34' fill='%231c2242'/%3E%3Crect x='204' y='102' width='34' height='34' fill='%231c2242'/%3E%3Crect x='68' y='136' width='34' height='34' fill='%231c2242'/%3E%3Crect x='102' y='136' width='34' height='34' fill='%231c2242'/%3E%3Crect x='136' y='136' width='34' height='34' fill='%231c2242'/%3E%3Crect x='170' y='136' width='34' height='34' fill='%231c2242'/%3E%3Crect x='34' y='170' width='34' height='34' fill='%231c2242'/%3E%3Crect x='68' y='170' width='34' height='34' fill='%231c2242'/%3E%3Crect x='102' y='170' width='34' height='34' fill='%231c2242'/%3E%3Crect x='136' y='170' width='34' height='34' fill='%231c2242'/%3E%3Crect x='170' y='170' width='34' height='34' fill='%231c2242'/%3E%3Crect x='204' y='170' width='34' height='34' fill='%231c2242'/%3E%3Crect x='0' y='204' width='34' height='34' fill='%231c2242'/%3E%3Crect x='68' y='204' width='34' height='34' fill='%231c2242'/%3E%3Crect x='102' y='204' width='34' height='34' fill='%231c2242'/%3E%3Crect x='136' y='204' width='34' height='34' fill='%231c2242'/%3E%3Crect x='170' y='204' width='34' height='34' fill='%231c2242'/%3E%3Crect x='238' y='204' width='34' height='34' fill='%231c2242'/%3E%3Crect x='68' y='238' width='34' height='34' fill='%231c2242'/%3E%3Crect x='102' y='238' width='34' height='34' fill='%231c2242'/%3E%3Crect x='136' y='238' width='34' height='34' fill='%231c2242'/%3E%3Crect x='170' y='238' width='34' height='34' fill='%231c2242'/%3E%3Crect x='68' y='272' width='34' height='34' fill='%231c2242'/%3E%3Crect x='170' y='272' width='34' height='34' fill='%231c2242'/%3E%3Crect x='34' y='306' width='34' height='34' fill='%231c2242'/%3E%3Crect x='68' y='306' width='34' height='34' fill='%231c2242'/%3E%3Crect x='170' y='306' width='34' height='34' fill='%231c2242'/%3E%3Crect x='204' y='306' width='34' height='34' fill='%231c2242'/%3E%3C/g%3E%3Cpath d='M252.0,426.0 V362.0 H316.0 M528.0,362.0 H592.0 V426.0 M592.0,706.0 V770.0 H528.0 M316.0,770.0 H252.0 V706.0' fill='none' stroke='%23ffcc00' stroke-width='22' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" width="22" height="22" alt="">Frame Board</span>
-  <button class="btn primary" data-new>+ 새 영상</button>
-  <button class="btn" id="recentBtn" popovertarget="recent">최근 영상</button>
+  <button class="btn primary" data-new>+ 열기</button>
+  <button class="btn" id="recentBtn" popovertarget="recent">최근 항목</button>
   <button class="ib" id="themeBtn"></button>
 </header>
 <div id="recent" popover class="pop glass"><div id="recentList"></div></div>
@@ -265,38 +295,45 @@ dialog::backdrop{background:transparent}
 
 <dialog id="import" class="wrap" aria-labelledby="impH">
   <form class="sheet imp" id="impForm">
-    <h2 id="impH">새 영상 불러오기</h2>
+    <h2 id="impH">영상이나 GIF 열기</h2>
     <div class="row">
-      <input id="url" type="text" inputmode="url" autocomplete="off" spellcheck="false" autofocus placeholder="유튜브 링크를 붙여넣으세요" aria-label="유튜브 링크">
-      <button class="btn primary lg" id="impGo">불러오기</button>
+      <input id="url" type="text" inputmode="url" autocomplete="off" spellcheck="false" autofocus placeholder="유튜브 링크나 GIF 링크를 붙여넣으세요" aria-label="유튜브 또는 GIF 링크">
+      <button class="btn primary lg" id="impGo">열기</button>
     </div>
+    <div class="drop" id="drop">GIF 파일을 여기로 끌어다 놓거나 <label class="btn">파일 선택<input type="file" id="file" accept="image/gif,image/webp,image/png" hidden></label></div>
     <div class="status">
       <span class="bar indet" id="impBar" hidden><i></i></span>
       <span id="impText"></span>
       <p class="err" id="impErr" role="alert"></p>
     </div>
-    <p class="muted">영상을 통째로 받지 않아서 긴 영상도 몇 초면 열려요.</p>
+    <p class="muted">유튜브 영상은 통째로 받지 않아서 긴 영상도 몇 초면 열려요.</p>
   </form>
 </dialog>
 
 <dialog id="editor" class="wrap" aria-labelledby="edTitle">
   <div class="sheet ed" tabindex="-1" autofocus>
-    <header class="edhead"><h2 id="edTitle"></h2><button class="ib" id="edClose" aria-label="닫기">✕</button></header>
+    <header class="edhead">
+      <h2 id="edTitle"></h2>
+      <ol class="edsteps" id="steps" aria-label="진행 단계"><li><b>1</b>박스 그리기</li><li><b>2</b>따라가는지 확인</li><li><b>3</b>프레임 뽑기</li></ol>
+      <button class="ib" id="edClose" aria-label="닫기">✕</button>
+    </header>
     <div class="stage" id="stage">
       <video id="video" muted playsinline preload="auto"></video>
+      <img id="still" alt="" hidden>
       <div class="overlay" id="overlay">
         <div id="box" hidden><span data-c="nw"></span><span data-c="ne"></span><span data-c="sw"></span><span data-c="se"></span></div>
       </div>
-      <div class="hint glass"><span id="hintTxt"></span><button class="link" id="goStart" hidden>시작 프레임으로</button></div>
+      <div class="hint glass"><span id="hintTxt"></span><button class="link" id="goStart" hidden>구간으로 가기</button><button class="link" id="okBad" hidden>잘 따라가고 있어요 <kbd>Y</kbd></button></div>
     </div>
     <div class="scrub">
       <button class="ib" id="play" aria-label="재생 (Space)"></button>
       <button class="ib" id="prevF" aria-label="이전 프레임 (←)"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M3 3h2v10H3zM13 3v10L6 8z"/></svg></button>
       <button class="ib" id="nextF" aria-label="다음 프레임 (→)"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M11 3h2v10h-2zM3 3v10l7-5z"/></svg></button>
       <div class="track" id="track" role="slider" aria-label="재생 위치" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-        <div class="rail"></div><div id="tRange" hidden></div><div id="tHead"><i></i></div>
+        <div class="rail"></div><div id="tRange" hidden></div><canvas id="tMarks"></canvas><div id="tHead"><i></i></div>
       </div>
       <span id="timeTxt"></span>
+      <button class="link" id="zoomT" hidden></button>
     </div>
     <div class="panel">
       <section class="grp">
@@ -306,11 +343,16 @@ dialog::backdrop{background:transparent}
           <button class="btn" id="setOut">여기서 끝 <kbd>O</kbd></button>
         </div>
         <p id="rangeTxt"></p>
-        <p class="muted">추적은 시작 프레임의 박스 위치에서 출발해요</p>
+      </section>
+      <section class="grp trk">
+        <h3>따라가기</h3>
+        <label class="sw"><input type="checkbox" role="switch" id="follow"><span>캐릭터 따라가기<small>끄면 박스 위치 그대로 잘라요</small></span></label>
+        <p id="trkTxt"></p>
+        <span class="bar" id="trkBar" hidden><i></i></span>
+        <div class="row"><button class="btn" id="nextBad" hidden>확인할 곳 보기 → <kbd>N</kbd></button></div>
       </section>
       <section class="grp">
         <h3>옵션</h3>
-        <label class="sw"><input type="checkbox" role="switch" id="follow"><span>캐릭터 따라가기<small>끄면 박스 위치 고정</small></span></label>
         <label class="sw"><input type="checkbox" role="switch" id="dedupe"><span>같은 그림은 건너뛰기<small>게임 애니메이션은 한 동작이 여러 프레임 유지돼요</small></span></label>
         <div class="row"><span class="muted">간격</span>
           <div class="seg" id="seg" role="group" aria-label="간격">
@@ -324,7 +366,7 @@ dialog::backdrop{background:transparent}
         <p class="err" id="edErr" role="alert"></p>
       </section>
     </div>
-    <p class="tip">추적이 빗나가면: 빗나간 프레임에서 박스를 다시 그리고 거기서부터 다시 뽑으세요.</p>
+    <p class="tip">박스가 캐릭터를 놓치면 그 프레임에서 박스를 캐릭터 위로 끌어다 놓으세요. 거기서부터 다시 따라가요 · 박스를 새로 그리면 그 프레임부터 새로 시작해요</p>
   </div>
 </dialog>
 
@@ -378,6 +420,7 @@ function saveNow() {
   catch { if (!saveWarned) { saveWarned = true; toast('보드를 저장하지 못했어요 — 브라우저 저장 공간이 부족해요', true); } }
 }
 addEventListener('pagehide', saveNow);
+window.frameBoardSave = saveNow; // the app window calls this right before it closes (pagehide doesn't fire there)
 // newest tab wins: an older tab stops saving so it can't overwrite the newer board
 // ponytail: a save landing between the new tab's read and this event is lost; needs a lock (Web Locks) if that matters
 addEventListener('storage', e => {
@@ -407,10 +450,11 @@ function toast(msg, err) {
 }
 
 // ── api ───────────────────────────────────────────────
-async function api(path, body) {
+async function api(path, body) { // body: JSON object, or a file sent as is
   let r;
+  const raw = body instanceof Blob, headers = { 'X-Frame-Board': '1', ...(raw ? {} : { 'Content-Type': 'application/json' }) }; // the custom header keeps other sites out (CORS)
   try {
-    r = await fetch(path, body === undefined ? undefined : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    r = await fetch(path, body === undefined ? undefined : { method: 'POST', headers, body: raw ? body : JSON.stringify(body) });
   } catch {
     throw Object.assign(new Error('서버에 연결할 수 없어요. 프로그램을 다시 실행해 주세요.'), { status: 0 });
   }
@@ -547,7 +591,11 @@ function render() {
     if (it.group) count.set(it.group, (count.get(it.group) || 0) + 1);
   }
   world.append(add);
-  for (const [id, el] of els) if (!live.has(id)) { el.remove(); els.delete(id); }
+  let gone = false;
+  for (const [id, el] of els) if (!live.has(id)) { el.remove(); els.delete(id); gone = true; }
+  // WebKit can leave removed images on screen until the view moves. Re-applying the same view is a no-op for it,
+  // so move it by an invisible amount: the whole board repaints, as after a wheel scroll
+  if (gone) { view.x += 1e-3; queueView(); }
   const shown = new Set();
   for (const g of board.groups) {
     if (!count.get(g.id) && !jobs.has(g.id)) continue;
@@ -603,7 +651,15 @@ function arrange(mode) {
   render();
 }
 function download(href, name) { const a = document.createElement('a'); a.href = href; a.download = name; a.click(); }
-function saveSel() { selItems().forEach((it, k) => setTimeout(() => download(it.src, `frame_${pad(it.n, 6)}.png`), k * 150)); }
+async function saveSel() { // app window: one native save dialog for any number of frames. browser window: plain downloads
+  const list = selItems().map(it => ({ src: it.src, name: `frame_${pad(it.n, 6)}.png` }));
+  if (!list.length) return;
+  try { const { saved } = await api('/api/save', { items: list }); if (saved) toast(`${saved}장을 저장했어요`); }
+  catch (err) {
+    if (err.status !== 501) { toast(err.message, true); return; }
+    list.forEach((it, k) => setTimeout(() => download(it.src, it.name), k * 150));
+  }
+}
 
 // undo: snapshot stack, one push per mutation (a whole drag counts once)
 const snap = () => ({ items: board.items.map(i => ({ ...i })), groups: board.groups.map(g => ({ ...g })) });
@@ -733,7 +789,8 @@ async function copySel() {
   const list = selItems(); if (!list.length) return;
   clip = list.map(i => ({ ...i }));
   const b = bounds(list);
-  if (b.w > 16384 || b.h > 16384 || b.w * b.h > 16384 * 16384) { toast('선택한 영역이 너무 커서 이미지로 복사할 수 없어요 — 조금 모아서 다시 해보세요', true); return; }
+  const clearClip = () => navigator.clipboard.writeText('').catch(() => {}); // else ⌘V would open an old link instead of pasting these
+  if (b.w > 16384 || b.h > 16384 || b.w * b.h > 16384 * 16384) { clearClip(); toast('선택한 영역이 너무 커서 이미지로 복사할 수 없어요 — 조금 모아서 다시 해보세요', true); return; }
   const blob = composite(list, b);
   blob.catch(() => {}); // handled below
   let hideBusy = null;
@@ -744,6 +801,7 @@ async function copySel() {
     toast(list.length === 1 ? '이미지를 복사했어요 — Aseprite나 Figma에 붙여넣을 수 있어요' : `${list.length}장을 한 장으로 복사했어요`);
   } catch {
     try {
+      clearClip();
       const url = URL.createObjectURL(await blob);
       download(url, 'frames.png');
       setTimeout(() => URL.revokeObjectURL(url), 10000);
@@ -769,7 +827,7 @@ addEventListener('keydown', e => {
   if (c === 'Space') { e.preventDefault(); spaceDown = true; viewport.classList.add('grab'); return; }
   if (drag) return; // editing mid-drag would desync the dragged items from the board
   const f = mod
-    ? { KeyA: selectAll, KeyD: dupSel, KeyC: copySel, KeyV: paste, KeyZ: e.shiftKey ? redo : undo, KeyY: redo, Equal: () => zoomBy(1.5), Minus: () => zoomBy(1 / 1.5), Digit0: fitView }[c]
+    ? { KeyA: selectAll, KeyD: dupSel, KeyC: copySel, KeyZ: e.shiftKey ? redo : undo, KeyY: redo, Equal: () => zoomBy(1.5), Minus: () => zoomBy(1 / 1.5), Digit0: fitView }[c]
     : e.altKey ? null
     : { KeyF: fitView, Digit1: zoom100, Numpad1: zoom100, Escape: () => { hideMenu(); setSel(new Set()); }, Delete: deleteSel, Backspace: deleteSel, Equal: () => zoomBy(1.5), Minus: () => zoomBy(1 / 1.5) }[c];
   if (f) { e.preventDefault(); f(); }
@@ -790,6 +848,7 @@ $('#zFit').addEventListener('click', fitView);
 document.querySelectorAll('kbd[data-k]').forEach(k => { k.textContent = MOD + k.dataset.k; });
 $('#delKey').textContent = MAC ? '⌫' : 'Del';
 $('#keysHint').textContent = `스크롤로 이동 · ${MAC ? '⌘' : 'Ctrl'} + 스크롤 또는 핀치로 확대 · ${MOD}C로 이미지 복사`;
+$('#pasteHint').textContent = `아무 데서나 ${MOD}V로 링크나 GIF를 붙여넣거나, GIF 파일을 창에 끌어다 놓아도 돼요`;
 
 const recentPop = $('#recent'), recentBtn = $('#recentBtn'), recentList = $('#recentList');
 function note(t) { const p = document.createElement('p'); p.className = 'muted'; p.textContent = t; return p; }
@@ -797,7 +856,8 @@ function vidRow(v) {
   const b = document.createElement('button'); b.className = 'vid';
   const t = document.createElement('b'); t.textContent = v.title || v.id;
   const s = document.createElement('small');
-  s.textContent = v.status === 'ready' ? `${v.width}×${v.height} · ${Math.round(v.fps)}fps · ${fmtS(v.duration)}` : `받는 중 ${Math.round(v.progress * 100)}%`;
+  s.textContent = v.kind === 'gif' ? `GIF · ${v.width}×${v.height} · ${v.frame_count}프레임`
+    : v.status === 'ready' ? `${v.width}×${v.height} · ${Math.round(v.fps)}fps · ${fmtS(v.duration)}` : `받는 중 ${Math.round(v.progress * 100)}%`;
   b.disabled = v.status !== 'ready';
   b.append(t, s);
   b.addEventListener('click', () => { recentPop.hidePopover(); openEditor(v, recentBtn); });
@@ -810,7 +870,7 @@ recentPop.addEventListener('beforetoggle', async e => {
   recentList.replaceChildren(note('불러오는 중…'));
   try {
     const list = (await api('/api/videos')).videos.filter(v => v.status !== 'error');
-    recentList.replaceChildren(...(list.length ? list.map(vidRow) : [note('아직 불러온 영상이 없어요')]));
+    recentList.replaceChildren(...(list.length ? list.map(vidRow) : [note('아직 연 영상이나 GIF가 없어요')]));
   } catch (err) { recentList.replaceChildren(note(err.message)); }
 });
 
@@ -839,7 +899,7 @@ for (const d of document.querySelectorAll('dialog')) {
 }
 
 // ── import ────────────────────────────────────────────
-const importDlg = $('#import'), urlIn = $('#url'), impGo = $('#impGo'), impBar = $('#impBar');
+const importDlg = $('#import'), urlIn = $('#url'), impGo = $('#impGo'), impBar = $('#impBar'), drop = $('#drop'), fileIn = $('#file');
 let impTok = 0;
 function setImp({ busy = false, text = '', err = '' } = {}) { // busy = indeterminate bar
   impBar.hidden = !busy;
@@ -850,14 +910,13 @@ function openImport(from) { urlIn.value = ''; setImp(); openSheet(importDlg, fro
 importDlg.addEventListener('close', () => { impTok++; busyBtn(impGo, false); });
 urlIn.addEventListener('paste', () => setTimeout(() => { if (/^\s*https?:\/\//.test(urlIn.value)) startImport(); }));
 $('#impForm').addEventListener('submit', e => { e.preventDefault(); startImport(); });
-async function startImport() {
-  const url = urlIn.value.trim();
-  if (!url || impGo.disabled) return;
+async function runImport(req, text) {
+  if (impGo.disabled) return;
   const tok = ++impTok;
   busyBtn(impGo, true); // feedback before the request: yt-dlp metadata takes seconds (longer on first launch)
-  setImp({ busy: true, text: '영상 정보를 확인하는 중…' });
+  setImp({ busy: true, text });
   try {
-    const { id } = await api('/api/videos', { url }); // streaming: the video is ready as soon as this returns
+    const { id } = await req(); // streaming / GIF frames: ready as soon as this returns
     const m = await api(`/api/videos/${encodeURIComponent(id)}`);
     if (tok === impTok) { closeSheet(importDlg); openEditor(m); }
   } catch (err) {
@@ -866,107 +925,384 @@ async function startImport() {
     if (tok === impTok) busyBtn(impGo, false);
   }
 }
+function startImport() {
+  const url = urlIn.value.trim();
+  if (url) runImport(() => api('/api/videos', { url }), '여는 중… 유튜브는 영상 정보를 확인하는 데 몇 초 걸려요');
+}
+function importFile(f) {
+  if (!GIFS.test(f.type)) { setImp({ err: 'GIF 파일만 열 수 있어요' }); return; }
+  if (f.size > 100 << 20) { setImp({ err: '파일이 너무 커요. 100MB까지 열 수 있어요' }); return; }
+  urlIn.value = '';
+  runImport(() => api(`/api/gifs?name=${encodeURIComponent(f.name)}`, f), 'GIF를 여는 중…');
+}
+const GIFS = /^image\/(gif|webp|png|apng)$/; // animated formats OpenCV can split into frames
+// what a paste or drop hands us: a GIF file, or a link. "Copy image" in a browser puts a still PNG on the
+// clipboard, but its HTML keeps the <img src> of the real GIF, so that wins over the PNG.
+function handed(dt, types) {
+  const f = [...(dt?.files || [])].find(f => types.test(f.type));
+  if (f) return { file: f };
+  const link = s => { const t = (s || '').trim().split(/\s+/)[0]; return /^https?:\/\/\S+$/.test(t) ? t : null; };
+  const u = link(dt?.getData('text/uri-list')); // a dragged link (e.g. a video thumbnail) is the link, not its picture
+  if (u) return { url: u };
+  const img = (dt?.getData('text/html') || '').match(/<img[^>]*\ssrc=["']?(https?:[^"'\s>]+)/i);
+  if (img) return { url: img[1].replace(/&amp;/g, '&'), html: true };
+  const t = link(dt?.getData('text/plain'));
+  return t ? { url: t } : null;
+}
+function hand(got) {
+  if (!importDlg.open) openImport();
+  if (got.file) importFile(got.file); else { urlIn.value = got.url; startImport(); }
+}
+fileIn.addEventListener('change', () => { const f = fileIn.files[0]; fileIn.value = ''; if (f) importFile(f); });
+document.addEventListener('paste', e => {
+  if (dead || editorDlg.open) return;
+  const got = handed(e.clipboardData, /^image\/(gif|webp)$/); // not PNG: that's our own copied frames (or a screenshot)
+  if (importDlg.open) { // a typed/pasted link goes into the field as usual (its own listener opens it)
+    if (got && (got.file || got.html || e.target !== urlIn)) { e.preventDefault(); hand(got); }
+    return;
+  }
+  if (e.target.closest?.('input,textarea,[contenteditable]')) return;
+  e.preventDefault();
+  if (got) hand(got); else paste(); // nothing to open: paste copied frames onto the board
+});
+addEventListener('dragover', e => { e.preventDefault(); if (!editorDlg.open) drop.classList.toggle('over', !!e.target.closest?.('#drop')); });
+addEventListener('dragleave', () => drop.classList.remove('over'));
+addEventListener('drop', e => {
+  e.preventDefault(); // never navigate away to the dropped file
+  drop.classList.remove('over');
+  if (dead || editorDlg.open) return;
+  const got = handed(e.dataTransfer, GIFS);
+  if (got) hand(got); else toast('GIF 파일이나 링크를 놓아주세요', true);
+});
 
 // ── editor ────────────────────────────────────────────
-const editorDlg = $('#editor'), video = $('#video'), stage = $('#stage'), overlay = $('#overlay'), boxEl = $('#box');
-const track = $('#track'), tHead = $('#tHead'), tRange = $('#tRange'), playBtn = $('#play'), goBtn = $('#goBtn');
-const followIn = $('#follow'), dedupeIn = $('#dedupe'), edErr = $('#edErr');
+// One box size for every crop. Its center per frame comes from the server's tracking preview (E.path), which starts at
+// the boxes the user placed (E.keys). Extraction crops along that same path: what plays here is what lands on the board.
+const editorDlg = $('#editor'), video = $('#video'), still = $('#still'), stage = $('#stage'), overlay = $('#overlay'), boxEl = $('#box');
+const track = $('#track'), tHead = $('#tHead'), tRange = $('#tRange'), tMarks = $('#tMarks'), playBtn = $('#play'), goBtn = $('#goBtn');
+const followIn = $('#follow'), dedupeIn = $('#dedupe'), edErr = $('#edErr'), trkTxt = $('#trkTxt'), trkBar = $('#trkBar'), nextBad = $('#nextBad');
 const ICON_PLAY = '<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5v11l9-5.5z"/></svg>';
 const ICON_PAUSE = '<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5h3v11H4zM9 2.5h3v11H9z"/></svg>';
-const mem = new Map(); // per video id: box/range/options, this session only
-const timeTxt = $('#timeTxt'), hintTxt = $('#hintTxt'), goStart = $('#goStart');
-let E = null, edRaf = 0, ed = null, tr = null, errT = 0, stageW = 0, stageH = 0, scrubN = 0;
+const mem = new Map(); // per video id: box/range/options/tracking, this session only
+const timeTxt = $('#timeTxt'), hintTxt = $('#hintTxt'), goStart = $('#goStart'), okBad = $('#okBad'), zoomT = $('#zoomT'), steps = $('#steps').children;
+const ST = ['lost', 'good', 'guess'], LABEL = { lost: '놓침', guess: '확인 필요', wait: '계산 중' }; // server per-frame state 0/1/2
+let E = null, M = video, edRaf = 0, ed = null, tr = null, trk = null, errT = 0, stageW = 0, stageH = 0, trackW = 0, scrubN = 0;
+
+// GIF: frames are PNGs on the server, played with their own delays. Mimics the parts of <video> the editor uses.
+const gif = new class extends EventTarget { // a class, not Object.assign: that would call the getter below with m = null
+  n = 0; paused = true; timer = 0; m = null; imgs = [];
+  load(m) {
+    this.pause(); this.m = m; this.n = 0;
+    // ponytail: preloads every frame (GIFs are small); load around the playhead if huge GIFs show up
+    this.imgs = Array.from({ length: m.frame_count }, (_, i) => { const im = new Image(); im.src = `${m.url}${pad(i, 6)}.png`; return im; });
+    this.show();
+  }
+  get currentTime() { return (this.n + 0.5) / this.m.fps; }
+  set currentTime(t) { this.n = clamp(Math.floor(t * this.m.fps), 0, this.m.frame_count - 1); this.show(); }
+  show() { still.src = this.imgs[this.n].src; }
+  play() {
+    if (this.paused) {
+      this.paused = false; this.dispatchEvent(new Event('play'));
+      const next = () => { this.timer = setTimeout(() => { this.n = (this.n + 1) % this.m.frame_count; this.show(); next(); }, this.m.delays[this.n]); };
+      next();
+    }
+    return Promise.resolve();
+  }
+  pause() { if (!this.paused) { this.paused = true; clearTimeout(this.timer); this.dispatchEvent(new Event('pause')); } }
+}();
 
 function openEditor(m, from) {
-  E = { meta: m, fps: m.fps || 30, fc: Math.max(1, m.frame_count || 1), box: null, boxAt: null, start: null, end: null, follow: true, dedupe: true, step: 1, frame: 0, shown: -1, ...mem.get(m.id) };
+  const isGif = m.kind === 'gif';
+  E = { meta: m, gif: isGif, fps: m.fps || 30, fc: Math.max(1, m.frame_count || 1), size: null, keys: new Map(), path: new Map(),
+    start: null, end: null, follow: true, dedupe: true, step: 1, frame: 0, zoom: false, ...mem.get(m.id), shown: -1 };
+  if (isGif) { E.tAt = [0]; for (const d of m.delays) E.tAt.push(E.tAt.at(-1) + d / 1000); }
+  M = isGif ? gif : video;
+  video.hidden = isGif; still.hidden = !isGif;
+  if (isGif) {
+    video.pause();
+    if (video.getAttribute('src')) { video.removeAttribute('src'); video.load(); } // stop streaming the previous video
+    gif.load(m);
+  } else {
+    gif.pause();
+    if (video.getAttribute('src') !== m.url || video.error) video.src = m.url; // retry a stream that failed before
+  }
   $('#edTitle').textContent = m.title || m.id;
-  if (video.getAttribute('src') !== m.url || video.error) video.src = m.url; // retry a stream that failed before
   edErr.textContent = '';
-  playBtn.innerHTML = ICON_PLAY;
+  setPlaying(false);
   openSheet(editorDlg, from);
   seek(E.frame);
   updateUI(); renderBox();
   cancelAnimationFrame(edRaf); tick();
+  const miss = firstMissing();
+  if (miss !== null) retrack(miss); // closed mid-tracking last time
 }
 editorDlg.addEventListener('close', () => {
-  video.pause(); cancelAnimationFrame(edRaf);
-  const { box, boxAt, start, end, follow, dedupe, step } = E;
-  mem.set(E.meta.id, { box, boxAt, start, end, follow, dedupe, step, frame: cur() });
+  held = false; M.pause(); cancelAnimationFrame(edRaf); stopTrack(); // held: don't resume a loop after closing
+  const { size, keys, path, start, end, follow, dedupe, step, zoom } = E;
+  mem.set(E.meta.id, { size, keys, path, start, end, follow, dedupe, step, zoom, frame: cur() });
 });
 $('#edClose').addEventListener('click', () => closeSheet(editorDlg));
-video.addEventListener('play', () => { playBtn.innerHTML = ICON_PAUSE; playBtn.setAttribute('aria-label', '일시정지 (Space)'); });
-video.addEventListener('pause', () => { playBtn.innerHTML = ICON_PLAY; playBtn.setAttribute('aria-label', '재생 (Space)'); });
-video.addEventListener('error', () => edMsg('영상을 열지 못했어요. 다시 불러와 주세요.'));
+function setPlaying(on) { playBtn.innerHTML = on ? ICON_PAUSE : ICON_PLAY; playBtn.setAttribute('aria-label', on ? '일시정지 (Space)' : '재생 (Space)'); }
+for (const t of [video, gif]) {
+  t.addEventListener('play', () => { setPlaying(true); const n = cur(); E.loop = E.start !== null && n >= E.start && n <= E.end; });
+  t.addEventListener('pause', () => { if (!held) setPlaying(false); });
+}
+// the frame actually on screen while the video plays: currentTime runs ahead of the picture
+// held: looping back to the range start. A streamed seek keeps the old picture ~0.5 s, and WebKit fires 'seeked' (and
+// runs currentTime) before the new frame exists (bugs.webkit.org/236755), so pause, seek, and play again only once a
+// frame callback reports the start frame itself
+let vfT = null, vfId = 0, held = false, heldT = 0;
+function loopBack() {
+  video.pause(); seek(E.start); held = true;
+  clearTimeout(heldT); heldT = setTimeout(resume, 3000); // never hang if no callback matches
+  const on = (_, m) => { if (held) { if (Math.abs(Math.round(m.mediaTime * E.fps) - E.start) <= 1) resume(); else video.requestVideoFrameCallback(on); } };
+  video.requestVideoFrameCallback?.(on);
+}
+function resume() { if (held) { held = false; video.play().catch(() => {}); } }
+video.addEventListener('seeked', () => { if (!video.requestVideoFrameCallback) resume(); }); // older engines: best we have
+video.addEventListener('play', () => {
+  const id = ++vfId; vfT = null;
+  const on = (_, m) => { if (id === vfId) { vfT = m.mediaTime; video.requestVideoFrameCallback(on); } };
+  video.requestVideoFrameCallback?.(on);
+});
+video.addEventListener('ended', () => { if (E?.loop && M === video) loopBack(); }); // range ends on the last frame
+video.addEventListener('error', () => { if (M === video && video.getAttribute('src')) edMsg('영상을 열지 못했어요. 다시 불러와 주세요.'); });
 // spinner on the stage while the video loads or a seek waits on the server (CSS delays it so quick seeks don't flash)
-for (const t of ['loadstart', 'seeking', 'waiting']) video.addEventListener(t, () => stage.classList.add('loading'));
-for (const t of ['loadeddata', 'seeked', 'playing', 'canplay', 'error']) video.addEventListener(t, () => stage.classList.remove('loading'));
+for (const t of ['loadstart', 'seeking', 'waiting']) video.addEventListener(t, () => { if (M === video) stage.classList.add('loading'); });
+for (const t of ['loadeddata', 'seeked', 'playing', 'canplay', 'error', 'emptied']) video.addEventListener(t, () => stage.classList.remove('loading'));
 
-const cur = () => clamp(Math.floor(video.currentTime * E.fps), 0, E.fc - 1);
-function seek(n) { video.currentTime = (clamp(n, 0, E.fc - 1) + 0.5) / E.fps; }
-function stepFrames(k) { video.pause(); seek(cur() + k); }
-function togglePlay() { if (video.paused) video.play().catch(() => {}); else video.pause(); }
-const defaultEnd = () => Math.min(E.start + Math.round(2 * E.fps), E.fc - 1);
-function edMsg(t) { edErr.textContent = t; clearTimeout(errT); errT = setTimeout(() => { edErr.textContent = ''; }, 5000); }
+const cur = () => clamp(Math.floor(M.currentTime * E.fps), 0, E.fc - 1);
+function seek(n) { held = false; M.currentTime = (clamp(n, 0, E.fc - 1) + 0.5) / E.fps; }
+function stepFrames(k) { M.pause(); seek(cur() + k); }
+function togglePlay() { if (held) { held = false; setPlaying(false); } else if (M.paused) M.play().catch(() => {}); else M.pause(); }
+const timeOf = n => E.gif ? E.tAt[n] : n / E.fps;
+// timeline: whole video, or zoomed to the range (+ margin) so a long video can still be scrubbed frame by frame
+function span() {
+  if (!E.zoom || E.start === null) return [0, E.fc];
+  const pad = Math.max(E.end - E.start + 1, Math.round(2 * E.fps));
+  return [Math.max(0, E.start - pad), Math.min(E.fc, E.end + 1 + pad)];
+}
+const fracOf = n => { const [a, b] = span(); return clamp((n - a) / (b - a), 0, 1); };
+const frameAt = f => { const [a, b] = span(); return clamp(Math.floor(a + f * (b - a)), 0, E.fc - 1); };
+const defaultEnd = n => E.gif ? E.fc - 1 : Math.min(n + Math.round(2 * E.fps), E.fc - 1); // a GIF is usually one whole move
+function edMsg(t) { edErr.textContent = t; clearTimeout(errT); errT = setTimeout(() => { edErr.textContent = ''; }, 6000); }
+
+function boxAt(n) { // where the crop sits on frame n, and how sure the tracking is
+  if (!E.size || E.start === null || n < E.start || n > E.end) return null;
+  if (!E.follow) return { c: E.keys.get(E.start), st: 'key' };
+  if (E.keys.has(n)) return { c: E.keys.get(n), st: 'key' };
+  const p = E.path.get(n);
+  if (p) return { c: p, st: ST[p[2]] };
+  for (let k = n - 1; k >= E.start; k--) { const q = E.keys.get(k) || E.path.get(k); if (q) return { c: q, st: 'wait' }; } // not computed yet
+  return null;
+}
+function boxRect(c) { // same integer math as top_left() in app.py, so the preview box is exactly the crop
+  const { w, h } = E.size;
+  return { x: clamp(Math.trunc(c[0]) - Math.floor(w / 2), 0, E.meta.width - w), y: clamp(Math.trunc(c[1]) - Math.floor(h / 2), 0, E.meta.height - h), w, h };
+}
+const isBad = k => !E.keys.has(k) && E.path.has(k) && E.path.get(k)[2] !== 1;
+function firstMissing() {
+  if (!E.follow || !E.size || E.start === null) return null;
+  for (let k = E.start; k <= E.end; k++) if (!E.keys.has(k) && !E.path.has(k)) return k;
+  return null;
+}
 
 function tick() {
   if (!editorDlg.open || dead) return;
-  const n = cur();
+  let n = cur();
+  if (E.loop && !M.paused && (n > E.end || n < E.start)) { if (M === video) loopBack(); else seek(E.start); n = E.start; } // playing to check the tracking: loop the range
+  if (held) n = E.end; // the last frame is still on screen until the seek lands: keep its box
+  else if (M === video && !video.paused && vfT !== null) n = clamp(Math.round(vfT * E.fps), 0, E.fc - 1);
   if (n !== E.shown) {
     E.shown = n;
-    tHead.style.transform = `translateX(${(n + 0.5) / E.fc * 100}%)`;
-    const t = `${fmt(n / E.fps)} · 프레임 ${n}`;
+    tHead.style.transform = `translateX(${fracOf(n + 0.5) * 100}%)`;
+    const t = `${fmt(timeOf(n))} · 프레임 ${n}`;
     timeTxt.textContent = t;
-    track.setAttribute('aria-valuenow', Math.round((n + 0.5) / E.fc * 100));
+    track.setAttribute('aria-valuenow', Math.round(fracOf(n + 0.5) * 100));
     track.setAttribute('aria-valuetext', t);
+    if (!ed) renderBox();
     updateHint(n);
   }
   edRaf = requestAnimationFrame(tick);
 }
 function updateHint(n) {
-  const off = !!E.box && E.boxAt !== E.start; // start was moved (I) away from the frame the box was drawn on
-  const stale = !!E.box && E.start !== null && (n !== E.start || off);
-  boxEl.classList.toggle('stale', stale);
-  const hint = !E.box ? '캐릭터 주위를 드래그해서 박스를 그리세요'
-    : off && n === E.start ? '시작 프레임이 바뀌었어요 — 박스를 이 프레임의 캐릭터에 맞게 옮겨주세요'
-    : stale ? `박스는 시작 프레임(#${E.start}) 기준이에요` : '박스를 그린 프레임부터 추적해요';
+  const b = boxAt(n), out = !!E.size && (n < E.start || n > E.end);
+  const hint = !E.size ? '캐릭터에 딱 맞게 드래그해서 박스를 그리세요 (배경이 많이 들어가면 잘 못 따라가요)'
+    : out ? '구간 밖이에요 · 여기서 박스를 새로 그리면 여기부터 다시 시작해요'
+    : !E.follow ? '박스 위치 그대로 잘라요 · 박스를 끌어서 옮길 수 있어요'
+    : b?.st === 'wait' ? '따라가는 중이에요… 잠시만요'
+    : b?.st === 'lost' ? '처음 모습과 달라 놓친 것 같아요 · 어긋났으면 박스를 캐릭터 위로 끌어다 놓으세요'
+    : b?.st === 'guess' ? '박스가 튀었거나 잠깐 놓친 곳이에요 · 어긋났으면 박스를 캐릭터 위로 끌어다 놓으세요'
+    : '▶ 재생해서 박스가 캐릭터를 잘 따라가는지 확인하세요';
   if (hintTxt.textContent !== hint) hintTxt.textContent = hint; // runs every played frame: skip no-op relayouts
-  goStart.hidden = !stale || n === E.start;
+  goStart.hidden = !out;
+  okBad.hidden = !(b?.st === 'lost' || b?.st === 'guess');
 }
 function updateUI() {
-  const { start: s, end: en, fps, fc, step } = E;
+  const { start: s, end: en, step } = E;
   const has = s !== null && en !== null;
-  $('#rangeTxt').textContent = has ? `${fmt(s / fps)} – ${fmt(en / fps)} (${en - s + 1}프레임)`
-    : '박스를 그리면 그 프레임부터 2초가 잡혀요';
+  $('#rangeTxt').textContent = has ? `${fmt(timeOf(s))} – ${fmt(timeOf(en))} (${en - s + 1}프레임)` : '박스를 그린 프레임부터 구간이 잡혀요';
   tRange.hidden = !has;
-  if (has) tRange.style.transform = `translateX(${s / fc * 100}%) scaleX(${(en - s + 1) / fc})`;
+  if (has) { const [a, b] = span(); tRange.style.transform = `translateX(${fracOf(s) * 100}%) scaleX(${(en - s + 1) / (b - a)})`; }
+  zoomT.hidden = !has; zoomT.textContent = E.zoom ? '전체 보기' : '구간 확대';
+  E.shown = -1; // the playhead moves with the timeline scale
+  let missing = 0, lost = 0, guess = 0;
+  if (has && E.size && E.follow) for (let k = s; k <= en; k++) {
+    if (E.keys.has(k)) continue;
+    const p = E.path.get(k);
+    if (!p) missing++; else if (p[2] === 0) lost++; else if (p[2] === 2) guess++;
+  }
+  const ready = !!E.size && has && !missing, tooLong = has && en - s + 1 > MAXN * 6;
+  trkTxt.textContent = !E.size ? '박스를 그리면 바로 따라가기 시작해요'
+    : !E.follow ? '박스를 한곳에 고정해서 잘라요'
+    : tooLong ? '구간이 너무 길어요. 끝을 앞으로 당겨주세요'
+    : missing ? (trk ? `따라가는 중 ${Math.floor((1 - missing / (en - s + 1)) * 100)}%` : '따라가기가 멈췄어요. 박스를 다시 놓아주세요')
+    : lost ? `${lost}프레임에서 놓쳤어요. 박스를 끌어서 고쳐주세요`
+    : guess ? `✓ 다 찾았어요 · ${guess}프레임은 확인이 필요해요 (주황색)`
+    : '✓ 모든 프레임에서 찾았어요';
+  trkTxt.className = lost || tooLong ? 'warn' : ready && E.follow ? 'ok' : '';
+  trkBar.hidden = !(missing && trk);
+  if (!trkBar.hidden) trkBar.firstChild.style.transform = `scaleX(${1 - missing / (en - s + 1)})`;
+  nextBad.hidden = !(lost || guess);
   const n = has ? Math.floor((en - s) / step) + 1 : 0;
   const est = $('#estimate');
-  est.textContent = !E.box ? '먼저 캐릭터 주위에 박스를 그려주세요'
-    : !has ? '구간을 정해주세요'
+  est.textContent = !E.size ? '먼저 캐릭터 주위에 박스를 그려주세요'
     : n > MAXN ? `${n}장 — ${MAXN}장까지만 돼요. 구간을 줄이거나 간격을 늘려주세요`
+    : !ready ? '따라가기가 끝나면 뽑을 수 있어요'
     : `최대 약 ${n}장`;
   est.classList.toggle('warn', n > MAXN);
-  goBtn.disabled = !E.box || !has || n > MAXN;
+  goBtn.disabled = !ready || n > MAXN;
   followIn.checked = E.follow; dedupeIn.checked = E.dedupe;
   for (const b of $('#seg').children) b.setAttribute('aria-pressed', +b.dataset.step === step);
+  const at = !E.size ? 0 : ready ? 2 : 1; // steps: draw → check the tracking → extract
+  [...steps].forEach((li, i) => { li.classList.toggle('done', i < at); li.classList.toggle('now', i === at); });
+  marksTask.queue();
 }
+
+// timeline marks: tracked span, red where the character was lost, amber = check me (bridged gap or a jump), white ticks = placed boxes
+const marksTask = frameTask(drawMarks);
+function drawMarks() {
+  const dpr = devicePixelRatio || 1, W = trackW, H = 28;
+  if (tMarks.width !== Math.round(W * dpr)) { tMarks.width = Math.round(W * dpr); tMarks.height = H * dpr; }
+  const ctx = tMarks.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, H);
+  if (!E?.size || E.start === null || !E.follow) return;
+  const X = n => fracOf(n) * W, COL = ['#ff453a', getComputedStyle(track).getPropertyValue('--accent').trim(), '#ff9f0a'];
+  const code = k => k > E.end ? null : E.keys.has(k) ? 1 : E.path.get(k)?.[2] ?? -1;
+  let a = E.start, st = code(a);
+  for (let k = a + 1; k <= E.end + 1; k++) {
+    const c = code(k);
+    if (c === st) continue;
+    if (st >= 0) { ctx.fillStyle = COL[st]; ctx.fillRect(X(a), 10, Math.max(2, X(k) - X(a)), 8); }
+    a = k; st = c;
+  }
+  ctx.fillStyle = '#fff';
+  for (const n of E.keys.keys()) ctx.fillRect(X(n + 0.5) - 1, 5, 2, 18);
+}
+new ResizeObserver(([en]) => { trackW = en.contentRect.width; marksTask.queue(); }).observe(track);
+
+// tracking preview: recompute from the last placed box at or before frame f (frames before it stay as they are)
+function stopTrack() { if (trk?.id) api(`/api/jobs/${trk.id}/cancel`, {}).catch(() => {}); trk = null; }
+function retrack(f) {
+  stopTrack();
+  E.shown = -1;
+  if (!E.follow || !E.size || E.start === null || E.end - E.start + 1 > MAXN * 6) return updateUI();
+  f = Math.min(f, firstMissing() ?? f); // an earlier run may have stopped before f: those frames need computing too
+  let K = E.start;
+  for (const n of E.keys.keys()) if (n <= f && n > K) K = n;
+  for (const n of [...E.path.keys()]) if (n >= K) E.path.delete(n);
+  // a box placed right after a lost/bridged stretch: bridge that stretch to the new box (the server only computes from K on)
+  if (isBad(K - 1)) {
+    let G = K - 1;
+    while (G > E.start && isBad(G)) G--;
+    const a = E.keys.get(G) || E.path.get(G), b = E.keys.get(K);
+    if (a) for (let k = G + 1; k < K; k++) {
+      const t = (k - G) / (K - G);
+      E.path.set(k, [Math.round(a[0] + (b[0] - a[0]) * t), Math.round(a[1] + (b[1] - a[1]) * t), 2]);
+    }
+  }
+  const keys = [...E.keys].map(([n, c]) => [n, c[0], c[1]]);
+  const t = trk = { id: null, k: 0, from: K };
+  updateUI();
+  api(`/api/videos/${encodeURIComponent(E.meta.id)}/track`, { start: E.start, end: E.end, size: [E.size.w, E.size.h], keys, from: K })
+    .then(({ job_id }) => { if (trk === t) { t.id = job_id; pollTrack(t); } else api(`/api/jobs/${job_id}/cancel`, {}).catch(() => {}); })
+    .catch(err => { if (trk === t) { trk = null; edMsg(err.message); updateUI(); } });
+}
+async function pollTrack(t) {
+  let fails = 0;
+  while (trk === t) {
+    let d;
+    try { d = await api(`/api/jobs/${t.id}?since=${t.k}`); fails = 0; }
+    catch (err) {
+      if (trk !== t) return;
+      if (err.status === 404 || ++fails > 10) { trk = null; edMsg(err.message); updateUI(); return; }
+      await sleep(500); continue;
+    }
+    if (trk !== t) return; // superseded by a newer box, or the editor closed
+    for (const [n, x, y, st] of d.items) if (n >= t.from && n <= E.end) E.path.set(n, [x, y, st]); // a re-found stretch arrives again: overwrite
+    t.k += d.items.length;
+    if (d.items.length) E.shown = -1; // redraw the box on the current frame
+    if (d.status !== 'running') {
+      trk = null;
+      const miss = firstMissing();
+      if (d.status === 'done' && miss !== null && miss > E.start) E.end = miss - 1; // the video ended early: keep what was tracked
+      if (d.error || miss !== null) edMsg(d.error || '영상 끝까지 따라가서 구간을 거기까지로 줄였어요');
+      updateUI();
+      return;
+    }
+    updateUI();
+    await sleep(120);
+  }
+}
+
 function setStart() {
-  E.start = cur();
-  if (E.end === null || E.end <= E.start) E.end = defaultEnd();
-  updateUI(); updateHint(E.start);
+  if (!E.size) return edMsg('먼저 캐릭터 주위에 박스를 그려주세요');
+  const n = cur(), c = (boxAt(n) || boxAt(n < E.start ? E.start : E.end)).c;
+  for (const m of [E.keys, E.path]) for (const k of [...m.keys()]) if (k < n || !E.follow) m.delete(k);
+  E.keys.set(n, [c[0], c[1]]); // the box shown here becomes the starting box
+  E.start = n;
+  if (E.end < n) E.end = defaultEnd(n);
+  retrack(n);
 }
 function setEnd() {
+  if (!E.size) return edMsg('먼저 캐릭터 주위에 박스를 그려주세요');
   const n = cur();
-  if (E.start !== null && n < E.start) { edMsg('끝은 시작보다 뒤에 있어야 해요'); return; }
-  E.end = n; updateUI();
+  if (n < E.start) { edMsg('끝은 시작보다 뒤에 있어야 해요'); return; }
+  const old = E.end;
+  E.end = n;
+  for (const m of [E.keys, E.path]) for (const k of [...m.keys()]) if (k > n) m.delete(k);
+  const miss = firstMissing();
+  if (miss !== null && (n > old || !trk)) retrack(miss); else { E.shown = -1; updateUI(); }
 }
 $('#setIn').addEventListener('click', setStart);
 $('#setOut').addEventListener('click', setEnd);
-goStart.addEventListener('click', () => { video.pause(); seek(E.start); });
+goStart.addEventListener('click', () => { M.pause(); seek(E.start); });
+zoomT.addEventListener('click', () => { E.zoom = !E.zoom; updateUI(); });
 playBtn.addEventListener('click', togglePlay);
 $('#prevF').addEventListener('click', () => stepFrames(-1));
 $('#nextF').addEventListener('click', () => stepFrames(1));
-followIn.addEventListener('change', () => { E.follow = followIn.checked; });
+nextBad.addEventListener('click', nextBadFrame);
+okBad.addEventListener('click', okHere);
+function okHere() { // the user checked it: the red/amber stretch around this frame is fine (a roll etc. just looks different)
+  const n = cur();
+  if (!isBad(n)) return;
+  let a = n, b = n;
+  while (a > E.start && isBad(a - 1)) a--;
+  while (b < E.end && isBad(b + 1)) b++;
+  for (let k = a; k <= b; k++) E.path.get(k)[2] = 1;
+  updateUI();
+}
+function nextBadFrame() { // jump to the start of the next lost/check-me stretch, wrapping around
+  const n = cur(), first = k => isBad(k) && (k === E.start || !isBad(k - 1));
+  let to = null;
+  for (let k = n + 1; k <= E.end && to === null; k++) if (first(k)) to = k;
+  for (let k = E.start; k <= n && to === null; k++) if (first(k)) to = k;
+  if (to !== null) { M.pause(); seek(to); }
+}
+followIn.addEventListener('change', () => {
+  E.follow = followIn.checked;
+  if (E.follow) retrack(firstMissing() ?? E.start); else { stopTrack(); E.shown = -1; updateUI(); }
+});
 dedupeIn.addEventListener('change', () => { E.dedupe = dedupeIn.checked; });
 // after a mouse toggle, give focus back to the sheet so Space means play again
 for (const l of document.querySelectorAll('.sw')) l.addEventListener('pointerup', () => setTimeout(() => editorDlg.firstElementChild.focus()));
@@ -979,14 +1315,16 @@ function editorKey(e) {
   else if (c === 'ArrowLeft' || c === 'ArrowRight') { e.preventDefault(); stepFrames((c === 'ArrowRight' ? 1 : -1) * (e.shiftKey ? 10 : 1)); }
   else if (c === 'KeyI' && !e.metaKey && !e.ctrlKey) setStart();
   else if (c === 'KeyO' && !e.metaKey && !e.ctrlKey) setEnd();
+  else if (c === 'KeyN' && !e.metaKey && !e.ctrlKey && !nextBad.hidden) nextBadFrame();
+  else if (c === 'KeyY' && !e.metaKey && !e.ctrlKey) okHere();
 }
 
 // timeline: seek continuously while dragging, at most once per frame (rect cached on pointerdown)
 const scrubTask = frameTask(() => seek(scrubN));
-function scrubTo(e) { scrubN = Math.floor(clamp((e.clientX - tr.left) / tr.width, 0, 1) * E.fc); scrubTask.queue(); }
+function scrubTo(e) { scrubN = frameAt(clamp((e.clientX - tr.left) / tr.width, 0, 1)); scrubTask.queue(); }
 track.addEventListener('pointerdown', e => {
   if (e.button !== 0) return;
-  video.pause(); track.setPointerCapture(e.pointerId);
+  M.pause(); track.setPointerCapture(e.pointerId);
   tr = track.getBoundingClientRect(); track.classList.add('active'); scrubTo(e);
 });
 track.addEventListener('pointermove', e => { if (tr) scrubTo(e); });
@@ -994,26 +1332,32 @@ for (const t of ['pointerup', 'pointercancel']) track.addEventListener(t, () => 
 
 // box: video pixel coords, displayed through object-fit: contain letterboxing
 function geo() { // stage size comes from the ResizeObserver: no layout reads while dragging
-  const W = E.meta.width || video.videoWidth || 1, H = E.meta.height || video.videoHeight || 1;
+  const W = E.meta.width || 1, H = E.meta.height || 1;
   const s = Math.min(stageW / W, stageH / H);
   return { W, H, s, ox: (stageW - W * s) / 2, oy: (stageH - H * s) / 2 };
 }
 function renderBox() {
-  boxEl.hidden = !E.box; if (!E.box) return;
-  const g = geo(), { x, y, w, h } = E.box;
-  boxEl.style.transform = `translate(${g.ox + x * g.s}px,${g.oy + y * g.s}px)`;
-  boxEl.style.width = w * g.s + 'px'; boxEl.style.height = h * g.s + 'px';
-  boxEl.dataset.size = `${Math.round(w)}×${Math.round(h)}`;
+  if (!E) return;
+  let r = ed?.rect, st = 'key';
+  if (!r) { const b = boxAt(cur()); if (b) { r = boxRect(b.c); st = b.st; } }
+  boxEl.hidden = !r; if (!r) return;
+  const g = geo();
+  boxEl.style.transform = `translate(${g.ox + r.x * g.s}px,${g.oy + r.y * g.s}px)`;
+  boxEl.style.width = r.w * g.s + 'px'; boxEl.style.height = r.h * g.s + 'px';
+  boxEl.className = LABEL[st] ? st : '';
+  const label = `${Math.round(r.w)}×${Math.round(r.h)}${LABEL[st] ? ' · ' + LABEL[st] : ''}`;
+  if (boxEl.dataset.label !== label) boxEl.dataset.label = label;
 }
-new ResizeObserver(([en]) => { stageW = en.contentRect.width; stageH = en.contentRect.height; if (E) renderBox(); }).observe(stage);
+new ResizeObserver(([en]) => { stageW = en.contentRect.width; stageH = en.contentRect.height; renderBox(); }).observe(stage);
 const vpt = (x, y, g) => [(x - g.r.left - g.ox) / g.s, (y - g.r.top - g.oy) / g.s];
 overlay.addEventListener('pointerdown', e => {
   if (e.button !== 0 || !E) return;
-  e.preventDefault(); video.pause(); overlay.setPointerCapture(e.pointerId);
+  e.preventDefault(); M.pause(); overlay.setPointerCapture(e.pointerId);
   const g = geo(); g.r = stage.getBoundingClientRect();
-  const [px, py] = vpt(e.clientX, e.clientY, g), c = e.target.dataset.c;
-  ed = { g, px, py, c, moved: false, B0: E.box && { ...E.box },
-    mode: c && E.box ? 'resize' : E.box && e.target.closest('#box') ? 'move' : 'draw' };
+  const [px, py] = vpt(e.clientX, e.clientY, g), c = e.target.dataset.c, n = cur(), b = boxAt(n);
+  const B0 = b && boxRect(b.c);
+  ed = { g, px, py, c, n, B0, rect: null, moved: false,
+    mode: c && B0 ? 'resize' : B0 && e.target.closest('#box') ? 'move' : 'draw' };
 });
 const boxTask = frameTask(boxFrame);
 overlay.addEventListener('pointermove', e => { if (ed) { ed.ex = e.clientX; ed.ey = e.clientY; boxTask.queue(); } });
@@ -1026,37 +1370,53 @@ function boxFrame() {
   px = clamp(px, 0, g.W); py = clamp(py, 0, g.H);
   if (ed.mode === 'draw') {
     const x0 = clamp(ed.px, 0, g.W), y0 = clamp(ed.py, 0, g.H);
-    E.box = { x: Math.min(x0, px), y: Math.min(y0, py), w: Math.abs(px - x0), h: Math.abs(py - y0) };
+    ed.rect = { x: Math.min(x0, px), y: Math.min(y0, py), w: Math.abs(px - x0), h: Math.abs(py - y0) };
   } else if (ed.mode === 'move') {
-    E.box = { ...B0, x: clamp(B0.x + px - ed.px, 0, g.W - B0.w), y: clamp(B0.y + py - ed.py, 0, g.H - B0.h) };
+    ed.rect = { ...B0, x: clamp(B0.x + px - ed.px, 0, g.W - B0.w), y: clamp(B0.y + py - ed.py, 0, g.H - B0.h) };
   } else {
     let x0 = B0.x, y0 = B0.y, x1 = x0 + B0.w, y1 = y0 + B0.h;
     if (ed.c.includes('w')) x0 = Math.min(px, x1 - 4); else x1 = Math.max(px, x0 + 4);
     if (ed.c.includes('n')) y0 = Math.min(py, y1 - 4); else y1 = Math.max(py, y0 + 4);
-    E.box = { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+    ed.rect = { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
   }
-  renderBox(); updateHint(cur());
+  renderBox();
 }
 function boxEnd() {
   boxTask.flush();
   const d = ed; ed = null;
-  if (!d || !d.moved) return;
-  if (d.mode === 'draw' && (E.box.w < 4 || E.box.h < 4)) { E.box = d.B0; renderBox(); updateHint(cur()); return; }
-  E.boxAt = cur(); setStart(); // rule: tracking starts at the frame where the box was drawn/adjusted
+  const r = d?.moved && d.rect;
+  if (!r || (d.mode === 'draw' && (r.w < 4 || r.h < 4))) { renderBox(); return; }
+  const x = Math.round(r.x), y = Math.round(r.y), w = Math.round(r.w), h = Math.round(r.h);
+  const c = [x + Math.floor(w / 2), y + Math.floor(h / 2)], n = d.n; // boxRect(c) gives back exactly x, y
+  if (d.mode === 'draw') { // a new box starts over from this frame
+    stopTrack();
+    if (E.start === null && E.fc > 30 * E.fps) E.zoom = true; // long video: zoom the timeline to the range once
+    E.keys = new Map([[n, c]]); E.path = new Map(); E.size = { w, h };
+    E.end = E.end !== null && E.end > n ? E.end : defaultEnd(n);
+    E.start = n;
+    retrack(n);
+  } else { // moved or resized on this frame: tracking restarts here from the corrected box
+    const resized = w !== E.size.w || h !== E.size.h;
+    E.size = { w, h };
+    if (!E.follow) { E.keys = new Map([[E.start, c]]); E.shown = -1; updateUI(); }
+    else { E.keys.set(n, c); retrack(resized ? E.start : n); } // a new size changes every crop
+  }
+  renderBox();
 }
 overlay.addEventListener('pointerup', boxEnd);
 overlay.addEventListener('pointercancel', boxEnd);
 
 goBtn.addEventListener('click', async () => {
-  const { meta, box, start, end, step, follow, dedupe, fps } = E;
-  const W = meta.width, H = meta.height;
-  const x = clamp(Math.round(box.x), 0, W - 1), y = clamp(Math.round(box.y), 0, H - 1);
-  const w = clamp(Math.round(box.w), 1, W - x), h = clamp(Math.round(box.h), 1, H - y);
+  const { meta, size, start, end, step, dedupe } = E, centers = [];
+  for (let k = start; k <= end; k++) {
+    const c = E.follow ? E.keys.get(k) || E.path.get(k) : E.keys.get(start);
+    centers.push([c[0], c[1]]);
+  }
   busyBtn(goBtn, true);
   try {
-    const { job_id } = await api(`/api/videos/${encodeURIComponent(meta.id)}/track`, { start, end, step, box: [x, y, w, h], follow, dedupe });
+    const { job_id } = await api(`/api/videos/${encodeURIComponent(meta.id)}/extract`, { start, end, step, size: [size.w, size.h], centers, dedupe });
     closeSheet(editorDlg);
-    startJob(job_id, meta.title || meta.id, { start, end, step, w, h, fps });
+    startJob(job_id, meta.title || meta.id, { start, end, step, w: size.w, h: size.h, t0: timeOf(start), t1: timeOf(end) });
   } catch (err) { edMsg(err.message); toast(err.message, true); updateUI(); }
   finally { goBtn.classList.remove('busy'); } // on success it stays disabled while the sheet closes
 });
@@ -1075,7 +1435,7 @@ function startJob(id, title, o) {
   }
   const job = { id, x, y, k: 0, rows, h: o.h, fails: 0 };
   jobs.set(id, job);
-  board.groups.push({ id, title, t0: o.start / o.fps, t1: o.end / o.fps, x, y });
+  board.groups.push({ id, title, t0: o.t0, t1: o.t1, x, y });
   const cols = Math.min(COLS, Math.floor((o.end - o.start) / o.step) + 1);
   job.pill = makePill(job);
   render();
@@ -1104,7 +1464,7 @@ async function pollJob(job) {
       await sleep(1000); continue;
     }
     if (dead) return; // another tab took over and resumes this job
-    const g = jobGroup(job), add = d.frames.map(f => {
+    const g = jobGroup(job), add = d.items.map(f => {
       const k = job.k++;
       return { id: uid(), src: f.src, n: f.n, t: f.t, w: f.w, h: f.h, group: job.id,
         x: g.x + (k % COLS) * (f.w + GAP), y: g.y + Math.floor(k / COLS) * (f.h + GAP) };
@@ -1118,7 +1478,7 @@ async function pollJob(job) {
     job.pill.firstChild.textContent = job.stopping ? '멈추는 중…' : `추출 중 ${d.processed}/${d.total}`;
     job.pill.querySelector('.bar').classList.remove('indet');
     job.pill.querySelector('i').style.transform = `scaleX(${d.total ? d.processed / d.total : 0})`;
-    if (d.frames.length) render();
+    if (d.items.length) render();
     if (d.status !== 'running') {
       finishJob(job);
       if (d.status === 'done') toast(d.error ? `${d.count}장 추출 — ${d.error}` : `${d.count}장 추출 완료`, !!d.error);

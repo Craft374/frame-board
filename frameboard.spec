@@ -45,8 +45,9 @@ if sys.platform == "darwin":
         bundle_identifier="io.github.frameboard",
         icon=os.path.join(SPECPATH, "assets", "icon.icns"),
         info_plist={
-            # Cocoa 이벤트 루프가 없는 프로그램이라, Dock에 아이콘이 있으면 "응답 없음"으로 보입니다.
-            "LSUIElement": True,
+            # 창은 pywebview(WKWebView)가 직접 띄우므로 Dock 아이콘 = 이 프로그램입니다 (누르면 이 창이 앞으로).
+            "CFBundleName": "Frame Board",  # 메뉴 막대에 보이는 이름
+            "CFBundleDisplayName": "Frame Board",
             "NSHighResolutionCapable": True,
             "CFBundleShortVersionString": VERSION,
         },

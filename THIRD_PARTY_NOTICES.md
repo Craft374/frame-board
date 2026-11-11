@@ -21,6 +21,12 @@ following third-party components, each under its own license.
 | idna | BSD-3-Clause | https://github.com/kjd/idna |
 | charset-normalizer | MIT | https://github.com/jawah/charset_normalizer |
 | PyCryptodome (`pycryptodomex`) | BSD, Public Domain | https://github.com/Legrandin/pycryptodome |
+| pywebview | BSD-3-Clause | https://github.com/r0x0r/pywebview |
+| Bottle, proxy_tools (pywebview dependencies) | MIT | https://github.com/bottlepy/bottle |
+| typing_extensions | PSF-2.0 | https://github.com/python/typing_extensions |
+| PyObjC (macOS: pyobjc-core, Cocoa, WebKit, Quartz, Security, UniformTypeIdentifiers) | MIT | https://github.com/ronaldoussoren/pyobjc |
+| pythonnet, clr-loader, cffi, pycparser (Windows) | MIT (pycparser: BSD-3-Clause) | https://github.com/pythonnet/pythonnet |
+| Microsoft Edge WebView2 SDK DLLs, bundled inside pywebview (Windows) | BSD-3-Clause-style Microsoft license | https://www.nuget.org/packages/Microsoft.Web.WebView2 |
 | PyInstaller bootloader | GPL-2.0-or-later with the bootloader exception | https://github.com/pyinstaller/pyinstaller |
 
 ## FFmpeg note
